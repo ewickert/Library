@@ -1,0 +1,436 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Library.ViewModels"
+             xmlns:models="using:Library.Models"
+             xmlns:controls="using:Library.Views.Controls"
+             x:Class="Library.Views.CollectionView"
+             x:DataType="vm:CollectionViewModel">
+
+  <Grid ColumnDefinitions="*,300" RowDefinitions="Auto,*,Auto">
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="8,8,8,4">
+      <TextBox Text="{Binding SearchText}" Watermark="Search cards…" Width="220" />
+      <Button Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"
+              Padding="6,2" FontWeight="Bold" />
+      <CheckBox Content="Search Scryfall" IsChecked="{Binding IsExternalSearch}"
+                ToolTip.Tip="Search Scryfall for cards not in your collection" />
+      <Button Content="🔍 Search" Command="{Binding SearchExternalCommand}"
+              IsVisible="{Binding IsExternalSearch}" Padding="8,4" />
+      <ComboBox ItemsSource="{Binding AvailableSets}" SelectedItem="{Binding SelectedSetFilter}"
+                Width="180" MaxDropDownHeight="300"
+                IsVisible="{Binding !IsExternalSearch}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:SetItem">
+            <TextBlock Text="{Binding Display}" />
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+      <Button Content="+ Add Card" Click="OnAddCardClick" IsVisible="{Binding !IsExternalSearch}" />
+      <Button Content="Import CSV" Click="OnImportCsvClick" IsVisible="{Binding !IsExternalSearch}" />
+      <Button Command="{Binding BackfillMetadataCommand}" Padding="8,4"
+              IsVisible="{Binding !IsExternalSearch}"
+              ToolTip.Tip="Fetch type/colour/mana data from Scryfall for cards that are missing it">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <TextBlock IsVisible="{Binding !IsBackfilling}" Text="↻ Fill Metadata" />
+          <TextBlock IsVisible="{Binding IsBackfilling}" Text="■ Stop" />
+        </StackPanel>
+      </Button>
+      <TextBlock Text="{Binding BackfillStatus}" VerticalAlignment="Center"
+                 FontSize="12" Opacity="0.7"
+                 IsVisible="{Binding BackfillStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      <Button Command="{Binding ToggleViewCommand}" Padding="8,4" IsVisible="{Binding !IsExternalSearch}">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+          <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="13" />
+          <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="13" />
+        </StackPanel>
+      </Button>
+    </StackPanel>
+
+    <!-- List / Grid area -->
+    <Panel Grid.Row="1" Grid.Column="0" IsVisible="{Binding !IsExternalSearch}">
+
+      <!-- List view -->
+      <DataGrid ItemsSource="{Binding Cards}"
+                SelectedItem="{Binding SelectedCard}"
+                IsReadOnly="True"
+                AutoGenerateColumns="False"
+                GridLinesVisibility="Horizontal"
+                IsVisible="{Binding !IsGridView}"
+                Margin="8,0,4,8">
+        <DataGrid.Styles>
+          <Style Selector="DataGridRow">
+            <Setter Property="ToolTip.Tip" Value="{Binding}" />
+            <Setter Property="ToolTip.ShowDelay" Value="300" />
+          </Style>
+        </DataGrid.Styles>
+        <DataGrid.DataTemplates>
+          <DataTemplate DataType="models:Card">
+            <controls:CardImageControl Card="{Binding}" />
+          </DataTemplate>
+        </DataGrid.DataTemplates>
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+          <DataGridTextColumn Header="Set" Binding="{Binding SetCode}" Width="50" />
+          <DataGridTextColumn Header="#" Binding="{Binding CollectorNumber}" Width="50" />
+          <DataGridTemplateColumn Header="Foil" Width="50">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <CheckBox IsChecked="{Binding Foil, Mode=OneWay}" IsHitTestVisible="False" HorizontalAlignment="Center" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="Rarity" Binding="{Binding Rarity}" Width="70" />
+          <DataGridTextColumn Header="Condition" Binding="{Binding Condition}" Width="70" />
+          <DataGridTextColumn Header="Language" Binding="{Binding Language}" Width="60" />
+          <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="45" />
+          <DataGridTextColumn Header="Price" Binding="{Binding PurchasePrice, StringFormat=\{0:F2\}}" Width="70" />
+          <DataGridTextColumn Header="Currency" Binding="{Binding PurchasePriceCurrency}" Width="60" />
+          <DataGridTemplateColumn Header="Misprint" Width="65">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <CheckBox IsChecked="{Binding Misprint, Mode=OneWay}" IsHitTestVisible="False" HorizontalAlignment="Center" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="Altered" Width="60">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <CheckBox IsChecked="{Binding Altered, Mode=OneWay}" IsHitTestVisible="False" HorizontalAlignment="Center" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="Added" Binding="{Binding Added, StringFormat=\{0:yyyy-MM-dd\}}" Width="90" />
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <!-- Grid view -->
+      <ScrollViewer x:Name="GridScrollViewer" IsVisible="{Binding IsGridView}"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto"
+                    Margin="8,0,4,8">
+        <ItemsControl ItemsSource="{Binding CardSlots}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CardSlotViewModel">
+              <Button Padding="0" Margin="6"
+                      Command="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).SelectCardCommand}"
+                      CommandParameter="{Binding Card}"
+                      Background="Transparent">
+                <Border Width="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).TileWidth}"
+                        Height="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).TileHeight}"
+                        CornerRadius="8" ClipToBounds="True"
+                        ToolTip.ShowDelay="200"
+                        Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                  <ToolTip.Tip>
+                    <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
+                      <Panel>
+                        <Image Source="{Binding Image}" MaxWidth="280" MaxHeight="392" Stretch="Uniform"
+                               IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <TextBlock Text="{Binding Card.Name}" Foreground="White" FontSize="13" FontWeight="Bold"
+                                   TextWrapping="Wrap" MaxWidth="268" Margin="4"
+                                   IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}" />
+                      </Panel>
+                    </Border>
+                  </ToolTip.Tip>
+                  <Panel>
+                    <Image Source="{Binding Image}" Stretch="UniformToFill"
+                           IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                IsVisible="{Binding IsLoading}" Spacing="6">
+                      <ProgressBar IsIndeterminate="True" Width="80" />
+                      <TextBlock Text="{Binding Card.Name}" FontSize="10" TextWrapping="Wrap"
+                                 HorizontalAlignment="Center" TextAlignment="Center" Opacity="0.6" MaxWidth="140" />
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="4"
+                                IsVisible="{Binding IsLoading, Converter={x:Static BoolConverters.Not}}">
+                      <Panel IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
+                        <StackPanel Spacing="4" HorizontalAlignment="Center">
+                          <TextBlock Text="🃏" FontSize="32" HorizontalAlignment="Center" />
+                          <TextBlock Text="{Binding Card.Name}" FontSize="10" TextWrapping="Wrap"
+                                     MaxWidth="140" HorizontalAlignment="Center" TextAlignment="Center" />
+                        </StackPanel>
+                      </Panel>
+                    </StackPanel>
+                    <Border IsVisible="{Binding Card.Foil}"
+                            Background="#88FFD700" CornerRadius="4"
+                            Padding="4,2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                      <TextBlock Text="✦ Foil" FontSize="9" FontWeight="Bold" Foreground="#805500" />
+                    </Border>
+                    <Border Background="#AA000000" CornerRadius="0,0,8,8"
+                            VerticalAlignment="Bottom" Padding="6,3">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding Card.Name}" FontSize="10" Foreground="White"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="110" />
+                        <TextBlock Text="{Binding Card.Condition}" FontSize="10" Foreground="#AAAAAA" />
+                      </StackPanel>
+                    </Border>
+                  </Panel>
+                </Border>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+    </Panel>
+
+    <!-- External Scryfall results (cards not in collection) -->
+    <Grid Grid.Row="1" Grid.Column="0" RowDefinitions="Auto,*"
+          IsVisible="{Binding IsExternalSearch}" Margin="8,0,4,8">
+
+      <!-- External results toolbar -->
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,4,0,6">
+        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsExternalSearching}"
+                     Width="80" Height="8" VerticalAlignment="Center" />
+        <TextBlock Text="No results found." Opacity="0.5" VerticalAlignment="Center"
+                   IsVisible="{Binding IsExternalSearching, Converter={x:Static BoolConverters.Not}}" />
+        <Button Padding="6,2" FontSize="11"
+                Command="{Binding ToggleExternalViewCommand}">
+          <Panel>
+            <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsExternalGridView}" />
+            <TextBlock Text="☰ List" IsVisible="{Binding IsExternalGridView}" />
+          </Panel>
+        </Button>
+      </StackPanel>
+
+      <!-- List view -->
+      <ScrollViewer Grid.Row="1" IsVisible="{Binding !IsExternalGridView}">
+        <ItemsControl ItemsSource="{Binding ExternalResults}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ScryfallResultViewModel">
+              <Border Margin="0,3" Padding="10,8" CornerRadius="6"
+                      Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="2">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                    <TextBlock FontSize="11" Opacity="0.7">
+                      <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding TypeLine}" />
+                    </TextBlock>
+                    <TextBlock FontSize="11" Opacity="0.7">
+                      <Run Text="{Binding ManaCost}" /><Run Text="  " /><Run Text="{Binding Rarity}" />
+                    </TextBlock>
+                  </StackPanel>
+                  <Button Grid.Column="1" Command="{Binding ToggleShoppingListCommand}"
+                          Padding="8,4" VerticalAlignment="Center">
+                    <Panel>
+                      <TextBlock Text="+ Want It" IsVisible="{Binding !IsOnShoppingList}" />
+                      <TextBlock Text="✓ On List" IsVisible="{Binding IsOnShoppingList}" Foreground="LightGreen" />
+                    </Panel>
+                  </Button>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <!-- Grid view -->
+      <ScrollViewer Grid.Row="1" IsVisible="{Binding IsExternalGridView}"
+                    HorizontalScrollBarVisibility="Disabled">
+        <ItemsControl ItemsSource="{Binding ExternalResults}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ScryfallResultViewModel">
+              <Border Width="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).TileWidth}"
+                      Height="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).TileHeight}"
+                      CornerRadius="8" ClipToBounds="True" Margin="6"
+                      ToolTip.ShowDelay="200"
+                      Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                <ToolTip.Tip>
+                  <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
+                    <Panel>
+                      <Image Source="{Binding Image}" MaxWidth="280" MaxHeight="392" Stretch="Uniform"
+                             IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                      <StackPanel Spacing="4" Margin="4"
+                                  IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
+                        <TextBlock Text="{Binding Name}" Foreground="White" FontSize="13" FontWeight="Bold"
+                                   TextWrapping="Wrap" MaxWidth="268" />
+                        <TextBlock Text="{Binding TypeLine}" Foreground="#CCCCCC" FontSize="11"
+                                   TextWrapping="Wrap" MaxWidth="268" />
+                        <TextBlock Text="{Binding ManaCost}" Foreground="#AAAAAA" FontSize="11" />
+                      </StackPanel>
+                    </Panel>
+                  </Border>
+                </ToolTip.Tip>
+                <Panel>
+                  <Image Source="{Binding Image}" Stretch="UniformToFill"
+                         IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                              IsVisible="{Binding IsLoading}" Spacing="6">
+                    <ProgressBar IsIndeterminate="True" Width="80" />
+                    <TextBlock Text="{Binding Name}" FontSize="10" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" TextAlignment="Center" Opacity="0.6" MaxWidth="140" />
+                  </StackPanel>
+                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="4"
+                              IsVisible="{Binding IsLoading, Converter={x:Static BoolConverters.Not}}">
+                    <Panel IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
+                      <StackPanel Spacing="4" HorizontalAlignment="Center">
+                        <TextBlock Text="🃏" FontSize="32" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding Name}" FontSize="10" TextWrapping="Wrap"
+                                   MaxWidth="140" HorizontalAlignment="Center" TextAlignment="Center" />
+                      </StackPanel>
+                    </Panel>
+                  </StackPanel>
+                  <!-- Want It button overlay -->
+                  <Button Command="{Binding ToggleShoppingListCommand}"
+                          HorizontalAlignment="Right" VerticalAlignment="Top"
+                          Margin="4" Padding="6,3" FontSize="11" FontWeight="Bold"
+                          CornerRadius="4">
+                    <Button.Styles>
+                      <Style Selector="Button">
+                        <Setter Property="Background" Value="#CC1A3A6C" />
+                        <Setter Property="Foreground" Value="White" />
+                      </Style>
+                      <Style Selector="Button:pointerover /template/ ContentPresenter">
+                        <Setter Property="Background" Value="#EE2244AA" />
+                      </Style>
+                    </Button.Styles>
+                    <Panel>
+                      <TextBlock Text="+ Want" IsVisible="{Binding !IsOnShoppingList}" />
+                      <TextBlock Text="✓ Wanted" IsVisible="{Binding IsOnShoppingList}" Foreground="#90EE90" />
+                    </Panel>
+                  </Button>
+                  <Border Background="#AA000000" CornerRadius="0,0,8,8"
+                          VerticalAlignment="Bottom" Padding="6,3">
+                    <StackPanel Spacing="3">
+                      <TextBlock Text="{Binding Name}" FontSize="10" Foreground="White"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock FontSize="9" Foreground="#AAAAAA" TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding Rarity}" />
+                      </TextBlock>
+                    </StackPanel>
+                  </Border>
+                </Panel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+    </Grid>
+
+    <!-- Card detail panel -->
+    <Border Grid.Row="0" Grid.Column="1" Grid.RowSpan="3"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            CornerRadius="8" Margin="4,8,8,8" Padding="12">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Card Details" FontWeight="Bold" FontSize="14" />
+
+          <!-- Card image -->
+          <Border Width="220" Height="308" CornerRadius="6" ClipToBounds="True"
+                  Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+            <Panel>
+              <TextBlock Text="No image" HorizontalAlignment="Center" VerticalAlignment="Center"
+                         IsVisible="{Binding CardImage, Converter={x:Static ObjectConverters.IsNull}}" />
+              <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoadingImage}"
+                           VerticalAlignment="Bottom" Margin="8" />
+              <Image Source="{Binding CardImage}" Stretch="Uniform"
+                     IsVisible="{Binding CardImage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </Panel>
+          </Border>
+
+          <!-- Alternate printings -->
+          <StackPanel IsVisible="{Binding SelectedCard, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Printings" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+              <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoadingAlternates}"
+                           Width="60" Height="8" VerticalAlignment="Center" />
+            </StackPanel>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" MaxHeight="130">
+              <ItemsControl ItemsSource="{Binding AlternatePrintings}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:AlternatePrintingViewModel">
+                    <Button Padding="0" Background="Transparent"
+                            Command="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).SelectAlternateCommand}"
+                            CommandParameter="{Binding}">
+                      <StackPanel Spacing="2" Width="72">
+                        <Border Width="72" Height="100" CornerRadius="4" ClipToBounds="True"
+                                Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                ToolTip.Tip="{Binding Data.SetName}">
+                          <Panel>
+                            <Image Source="{Binding Image}" Stretch="UniformToFill"
+                                   IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}"
+                                         VerticalAlignment="Center" Margin="4" />
+                          </Panel>
+                        </Border>
+                        <TextBlock Text="{Binding Data.SetCode}" FontSize="9" HorizontalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Data.CollectorNumber}" FontSize="9"
+                                   HorizontalAlignment="Center" Opacity="0.6" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </StackPanel>
+
+          <StackPanel IsVisible="{Binding SelectedCard, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="4">
+            <TextBlock Text="{Binding SelectedCard.Name}" FontWeight="Bold" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding SelectedCard.SetName}" Opacity="0.7" TextWrapping="Wrap" />
+            <TextBlock>
+              <Run Text="Rarity: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.Rarity}" />
+            </TextBlock>
+            <TextBlock>
+              <Run Text="Condition: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.Condition}" />
+            </TextBlock>
+            <TextBlock>
+              <Run Text="Language: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.Language}" />
+            </TextBlock>
+            <TextBlock>
+              <Run Text="Foil: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.Foil}" />
+            </TextBlock>
+            <TextBlock>
+              <Run Text="Quantity: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.Quantity}" />
+            </TextBlock>
+            <TextBlock IsVisible="{Binding SelectedCard.PurchasePrice, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Run Text="Price: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.PurchasePrice, StringFormat=\{0:F2\}}" />
+              <Run Text=" " />
+              <Run Text="{Binding SelectedCard.PurchasePriceCurrency}" />
+            </TextBlock>
+            <TextBlock IsVisible="{Binding SelectedCard.ManaBoxId, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Run Text="ManaBox ID: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.ManaBoxId}" />
+            </TextBlock>
+            <TextBlock IsVisible="{Binding SelectedCard.ScryfallId, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Run Text="Scryfall ID: " FontWeight="SemiBold" />
+              <Run Text="{Binding SelectedCard.ScryfallId}" />
+            </TextBlock>
+            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+              <Button Content="Edit" Click="OnEditCardClick" />
+              <Button Content="Delete" Command="{Binding DeleteCardCommand}"
+                      Background="#CC3300" Foreground="White" />
+            </StackPanel>
+          </StackPanel>
+
+          <TextBlock Text="Select a card to view details."
+                     IsVisible="{Binding SelectedCard, Converter={x:Static ObjectConverters.IsNull}}"
+                     Opacity="0.5" />
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+  </Grid>
+</UserControl>

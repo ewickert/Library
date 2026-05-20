@@ -1,0 +1,20 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Library.Views.Controls.CardImageControl"
+             x:Name="Root"
+             Background="#1A1A2A">
+  <Border CornerRadius="8" Padding="6">
+    <Panel Width="280" Height="392">
+      <TextBlock Text="{Binding #Root.CardName}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                 Foreground="White" FontSize="13" FontWeight="Bold"
+                 TextWrapping="Wrap" MaxWidth="268" Margin="4"
+                 IsVisible="{Binding #Root.Image, Converter={x:Static ObjectConverters.IsNull}}" />
+      <ProgressBar IsIndeterminate="True"
+                   IsVisible="{Binding #Root.IsLoading}"
+                   VerticalAlignment="Bottom" Margin="8" />
+      <Image Source="{Binding #Root.Image}" Stretch="Uniform"
+             IsVisible="{Binding #Root.Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </Panel>
+  </Border>
+</UserControl>

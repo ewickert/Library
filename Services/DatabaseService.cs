@@ -1,0 +1,714 @@
+using Library.Models;
+using Microsoft.Data.Sqlite;
+
+namespace Library.Services;
+
+public class DatabaseService
+{
+    private readonly string _connectionString;
+
+    public DatabaseService()
+    {
+        var appData = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MagicLibrary");
+        Directory.CreateDirectory(appData);
+        var dbPath = Path.Combine(appData, "library.db");
+        _connectionString = $"Data Source={dbPath}";
+        InitializeDatabase();
+    }
+
+    private SqliteConnection CreateConnection() => new(_connectionString);
+
+    private void InitializeDatabase()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS Cards (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                SetCode TEXT NOT NULL DEFAULT '',
+                SetName TEXT NOT NULL DEFAULT '',
+                CollectorNumber TEXT NOT NULL DEFAULT '',
+                Foil INTEGER NOT NULL DEFAULT 0,
+                Rarity TEXT NOT NULL DEFAULT '',
+                Quantity INTEGER NOT NULL DEFAULT 1,
+                ManaBoxId INTEGER,
+                ScryfallId TEXT,
+                PurchasePrice REAL,
+                Misprint INTEGER NOT NULL DEFAULT 0,
+                Altered INTEGER NOT NULL DEFAULT 0,
+                Condition TEXT NOT NULL DEFAULT 'NM',
+                Language TEXT NOT NULL DEFAULT 'en',
+                PurchasePriceCurrency TEXT,
+                Added TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS Decks (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                Description TEXT,
+                Format TEXT,
+                Created TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS DeckCards (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                DeckId INTEGER NOT NULL REFERENCES Decks(Id) ON DELETE CASCADE,
+                CardId INTEGER NOT NULL REFERENCES Cards(Id) ON DELETE CASCADE,
+                Quantity INTEGER NOT NULL DEFAULT 1,
+                IsSideboard INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS Binders (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Name TEXT NOT NULL,
+                Description TEXT,
+                Created TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS BinderCards (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                BinderId INTEGER NOT NULL REFERENCES Binders(Id) ON DELETE CASCADE,
+                CardId INTEGER NOT NULL REFERENCES Cards(Id) ON DELETE CASCADE,
+                Quantity INTEGER NOT NULL DEFAULT 1,
+                SlotIndex INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS ShoppingList (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ScryfallId TEXT NOT NULL,
+                Name TEXT NOT NULL,
+                SetCode TEXT NOT NULL DEFAULT '',
+                SetName TEXT NOT NULL DEFAULT '',
+                CollectorNumber TEXT NOT NULL DEFAULT '',
+                ManaCost TEXT NOT NULL DEFAULT '',
+                TypeLine TEXT NOT NULL DEFAULT '',
+                ColorIdentity TEXT NOT NULL DEFAULT '',
+                Rarity TEXT NOT NULL DEFAULT '',
+                Added TEXT NOT NULL DEFAULT (datetime('now')),
+                PlaceholderCardId INTEGER
+            );
+            """;
+        cmd.ExecuteNonQuery();
+
+        // Safe migrations — ignore errors if column already exists
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN ColorIdentity TEXT");
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN ManaCost TEXT");
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN TypeLine TEXT");
+        RunMigration(conn, "ALTER TABLE Decks ADD COLUMN CommanderColorIdentity TEXT");
+        RunMigration(conn, "ALTER TABLE DeckCards ADD COLUMN IsCommander INTEGER NOT NULL DEFAULT 0");
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN IsPlaceholder INTEGER NOT NULL DEFAULT 0");
+    }
+
+    private static void RunMigration(SqliteConnection conn, string sql)
+    {
+        try
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.ExecuteNonQuery();
+        }
+        catch { /* column already exists */ }
+    }
+
+    // --- Cards ---
+
+    public List<Card> GetAllCards()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Cards WHERE IsPlaceholder=0 OR IsPlaceholder IS NULL ORDER BY Name";
+        using var reader = cmd.ExecuteReader();
+        var cards = new List<Card>();
+        while (reader.Read()) cards.Add(ReadCard(reader));
+        return cards;
+    }
+
+    public Card? GetCard(int id)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Cards WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        using var reader = cmd.ExecuteReader();
+        return reader.Read() ? ReadCard(reader) : null;
+    }
+
+    public int AddCard(Card card)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO Cards (Name, SetCode, SetName, CollectorNumber, Foil, Rarity,
+                Quantity, ManaBoxId, ScryfallId, PurchasePrice, Misprint, Altered,
+                Condition, Language, PurchasePriceCurrency, Added, ColorIdentity, ManaCost, TypeLine)
+            VALUES ($name,$setCode,$setName,$collNum,$foil,$rarity,
+                $qty,$manaBoxId,$scryfallId,$price,$misprint,$altered,
+                $cond,$lang,$currency,$added,$colorIdentity,$manaCost,$typeLine);
+            SELECT last_insert_rowid();
+            """;
+        BindCardParams(cmd, card);
+        card.Id = Convert.ToInt32(cmd.ExecuteScalar());
+        return card.Id;
+    }
+
+    public void UpdateCard(Card card)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE Cards SET Name=$name, SetCode=$setCode, SetName=$setName,
+                CollectorNumber=$collNum, Foil=$foil, Rarity=$rarity, Quantity=$qty,
+                ManaBoxId=$manaBoxId, ScryfallId=$scryfallId, PurchasePrice=$price,
+                Misprint=$misprint, Altered=$altered, Condition=$cond, Language=$lang,
+                PurchasePriceCurrency=$currency, Added=$added, ColorIdentity=$colorIdentity,
+                ManaCost=$manaCost, TypeLine=$typeLine
+            WHERE Id=$id
+            """;
+        BindCardParams(cmd, card);
+        cmd.Parameters.AddWithValue("$id", card.Id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Updates only the three Scryfall-derived metadata columns for an existing card.</summary>
+    public void UpdateCardMetadata(int id, string? colorIdentity, string? manaCost, string? typeLine)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            UPDATE Cards SET ColorIdentity=$ci, ManaCost=$mc, TypeLine=$tl WHERE Id=$id
+            """;
+        cmd.Parameters.AddWithValue("$ci",  (object?)colorIdentity ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$mc",  (object?)manaCost      ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$tl",  (object?)typeLine      ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$id",  id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Returns all cards that are missing at least one of the three metadata columns.</summary>
+    public List<Card> GetCardsNeedingMetadata()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT * FROM Cards
+            WHERE ColorIdentity IS NULL OR ManaCost IS NULL OR TypeLine IS NULL
+            ORDER BY Name
+            """;
+        using var reader = cmd.ExecuteReader();
+        var cards = new List<Card>();
+        while (reader.Read()) cards.Add(ReadCard(reader));
+        return cards;
+    }
+
+    public void DeleteCard(int id)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Cards WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    private static void BindCardParams(SqliteCommand cmd, Card card)
+    {
+        cmd.Parameters.AddWithValue("$name", card.Name);
+        cmd.Parameters.AddWithValue("$setCode", card.SetCode);
+        cmd.Parameters.AddWithValue("$setName", card.SetName);
+        cmd.Parameters.AddWithValue("$collNum", card.CollectorNumber);
+        cmd.Parameters.AddWithValue("$foil", card.Foil ? 1 : 0);
+        cmd.Parameters.AddWithValue("$rarity", card.Rarity);
+        cmd.Parameters.AddWithValue("$qty", card.Quantity);
+        cmd.Parameters.AddWithValue("$manaBoxId", (object?)card.ManaBoxId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$scryfallId", (object?)card.ScryfallId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$price", (object?)card.PurchasePrice ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$misprint", card.Misprint ? 1 : 0);
+        cmd.Parameters.AddWithValue("$altered", card.Altered ? 1 : 0);
+        cmd.Parameters.AddWithValue("$cond", card.Condition);
+        cmd.Parameters.AddWithValue("$lang", card.Language);
+        cmd.Parameters.AddWithValue("$currency", (object?)card.PurchasePriceCurrency ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$added", card.Added.ToString("o"));
+        cmd.Parameters.AddWithValue("$colorIdentity", (object?)card.ColorIdentity ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$manaCost", (object?)card.ManaCost ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$typeLine", (object?)card.TypeLine ?? DBNull.Value);
+    }
+
+    private static Card ReadCard(SqliteDataReader r) => new()
+    {
+        Id = r.GetInt32(r.GetOrdinal("Id")),
+        Name = r.GetString(r.GetOrdinal("Name")),
+        SetCode = r.GetString(r.GetOrdinal("SetCode")),
+        SetName = r.GetString(r.GetOrdinal("SetName")),
+        CollectorNumber = r.GetString(r.GetOrdinal("CollectorNumber")),
+        Foil = r.GetInt32(r.GetOrdinal("Foil")) == 1,
+        Rarity = r.GetString(r.GetOrdinal("Rarity")),
+        Quantity = r.GetInt32(r.GetOrdinal("Quantity")),
+        ManaBoxId = r.IsDBNull(r.GetOrdinal("ManaBoxId")) ? null : r.GetInt64(r.GetOrdinal("ManaBoxId")),
+        ScryfallId = r.IsDBNull(r.GetOrdinal("ScryfallId")) ? null : r.GetString(r.GetOrdinal("ScryfallId")),
+        PurchasePrice = r.IsDBNull(r.GetOrdinal("PurchasePrice")) ? null : r.GetDecimal(r.GetOrdinal("PurchasePrice")),
+        Misprint = r.GetInt32(r.GetOrdinal("Misprint")) == 1,
+        Altered = r.GetInt32(r.GetOrdinal("Altered")) == 1,
+        Condition = r.GetString(r.GetOrdinal("Condition")),
+        Language = r.GetString(r.GetOrdinal("Language")),
+        PurchasePriceCurrency = r.IsDBNull(r.GetOrdinal("PurchasePriceCurrency")) ? null : r.GetString(r.GetOrdinal("PurchasePriceCurrency")),
+        Added = DateTime.Parse(r.GetString(r.GetOrdinal("Added"))),
+        ColorIdentity = r.IsDBNull(r.GetOrdinal("ColorIdentity")) ? null : r.GetString(r.GetOrdinal("ColorIdentity")),
+        ManaCost = r.IsDBNull(r.GetOrdinal("ManaCost")) ? null : r.GetString(r.GetOrdinal("ManaCost")),
+        TypeLine = r.IsDBNull(r.GetOrdinal("TypeLine")) ? null : r.GetString(r.GetOrdinal("TypeLine")),
+        IsPlaceholder = r.IsDBNull(r.GetOrdinal("IsPlaceholder")) ? false : r.GetInt32(r.GetOrdinal("IsPlaceholder")) == 1
+    };
+
+    // --- Shopping List ---
+
+    public List<ShoppingItem> GetShoppingList()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM ShoppingList ORDER BY Name";
+        using var reader = cmd.ExecuteReader();
+        var list = new List<ShoppingItem>();
+        while (reader.Read()) list.Add(ReadShoppingItem(reader));
+        return list;
+    }
+
+    public bool IsOnShoppingList(string scryfallId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM ShoppingList WHERE ScryfallId=$id";
+        cmd.Parameters.AddWithValue("$id", scryfallId);
+        return Convert.ToInt64(cmd.ExecuteScalar()) > 0;
+    }
+
+    /// <summary>
+    /// Adds a card to the shopping list, creating a placeholder Card row (Quantity=0, IsPlaceholder=1)
+    /// so it can be referenced by deck and binder tables. Returns the new ShoppingItem.Id.
+    /// </summary>
+    public int AddToShoppingList(ScryfallCardData data)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
+        // Check if a placeholder card already exists for this ScryfallId
+        int placeholderCardId;
+        using (var checkCmd = conn.CreateCommand())
+        {
+            checkCmd.Transaction = tx;
+            checkCmd.CommandText = "SELECT Id FROM Cards WHERE ScryfallId=$sid AND IsPlaceholder=1 LIMIT 1";
+            checkCmd.Parameters.AddWithValue("$sid", data.ScryfallId);
+            var existing = checkCmd.ExecuteScalar();
+            if (existing != null && existing != DBNull.Value)
+            {
+                placeholderCardId = Convert.ToInt32(existing);
+            }
+            else
+            {
+                using var ins = conn.CreateCommand();
+                ins.Transaction = tx;
+                ins.CommandText = """
+                    INSERT INTO Cards (Name, SetCode, SetName, CollectorNumber, Foil, Rarity,
+                        Quantity, ScryfallId, Condition, Language, Added,
+                        ColorIdentity, ManaCost, TypeLine, IsPlaceholder)
+                    VALUES ($name,$setCode,$setName,$collNum,0,$rarity,
+                        0,$scryfallId,'NM','en',$added,
+                        $colorIdentity,$manaCost,$typeLine,1);
+                    SELECT last_insert_rowid();
+                    """;
+                ins.Parameters.AddWithValue("$name", data.Name);
+                ins.Parameters.AddWithValue("$setCode", data.SetCode);
+                ins.Parameters.AddWithValue("$setName", data.SetName);
+                ins.Parameters.AddWithValue("$collNum", data.CollectorNumber);
+                ins.Parameters.AddWithValue("$rarity", data.Rarity);
+                ins.Parameters.AddWithValue("$scryfallId", data.ScryfallId);
+                ins.Parameters.AddWithValue("$added", DateTime.UtcNow.ToString("o"));
+                ins.Parameters.AddWithValue("$colorIdentity", data.ColorIdentity);
+                ins.Parameters.AddWithValue("$manaCost", data.ManaCost);
+                ins.Parameters.AddWithValue("$typeLine", data.TypeLine);
+                placeholderCardId = Convert.ToInt32(ins.ExecuteScalar());
+            }
+        }
+
+        // Insert into ShoppingList (avoid duplicates by ScryfallId)
+        int shoppingId;
+        using (var ins = conn.CreateCommand())
+        {
+            ins.Transaction = tx;
+            ins.CommandText = """
+                INSERT OR IGNORE INTO ShoppingList (ScryfallId, Name, SetCode, SetName, CollectorNumber,
+                    ManaCost, TypeLine, ColorIdentity, Rarity, Added, PlaceholderCardId)
+                VALUES ($sid,$name,$setCode,$setName,$collNum,
+                    $manaCost,$typeLine,$colorIdentity,$rarity,$added,$placeholderCardId);
+                SELECT COALESCE((SELECT Id FROM ShoppingList WHERE ScryfallId=$sid), last_insert_rowid());
+                """;
+            ins.Parameters.AddWithValue("$sid", data.ScryfallId);
+            ins.Parameters.AddWithValue("$name", data.Name);
+            ins.Parameters.AddWithValue("$setCode", data.SetCode);
+            ins.Parameters.AddWithValue("$setName", data.SetName);
+            ins.Parameters.AddWithValue("$collNum", data.CollectorNumber);
+            ins.Parameters.AddWithValue("$manaCost", data.ManaCost);
+            ins.Parameters.AddWithValue("$typeLine", data.TypeLine);
+            ins.Parameters.AddWithValue("$colorIdentity", data.ColorIdentity);
+            ins.Parameters.AddWithValue("$rarity", data.Rarity);
+            ins.Parameters.AddWithValue("$added", DateTime.UtcNow.ToString("o"));
+            ins.Parameters.AddWithValue("$placeholderCardId", placeholderCardId);
+            shoppingId = Convert.ToInt32(ins.ExecuteScalar());
+        }
+
+        tx.Commit();
+        return shoppingId;
+    }
+
+    /// <summary>Removes a shopping list item. Also deletes the placeholder Card if no deck/binder references it.</summary>
+    public void RemoveFromShoppingList(int shoppingId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
+        int? placeholderCardId = null;
+        using (var sel = conn.CreateCommand())
+        {
+            sel.Transaction = tx;
+            sel.CommandText = "SELECT PlaceholderCardId FROM ShoppingList WHERE Id=$id";
+            sel.Parameters.AddWithValue("$id", shoppingId);
+            var val = sel.ExecuteScalar();
+            if (val != null && val != DBNull.Value) placeholderCardId = Convert.ToInt32(val);
+        }
+
+        using (var del = conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM ShoppingList WHERE Id=$id";
+            del.Parameters.AddWithValue("$id", shoppingId);
+            del.ExecuteNonQuery();
+        }
+
+        if (placeholderCardId.HasValue)
+        {
+            using var check = conn.CreateCommand();
+            check.Transaction = tx;
+            check.CommandText = """
+                SELECT
+                    (SELECT COUNT(*) FROM DeckCards   WHERE CardId=$cid) +
+                    (SELECT COUNT(*) FROM BinderCards WHERE CardId=$cid)
+                """;
+            check.Parameters.AddWithValue("$cid", placeholderCardId.Value);
+            var total = Convert.ToInt64(check.ExecuteScalar());
+            if (total == 0)
+            {
+                using var delCard = conn.CreateCommand();
+                delCard.Transaction = tx;
+                delCard.CommandText = "DELETE FROM Cards WHERE Id=$cid AND IsPlaceholder=1";
+                delCard.Parameters.AddWithValue("$cid", placeholderCardId.Value);
+                delCard.ExecuteNonQuery();
+            }
+        }
+
+        tx.Commit();
+    }
+
+    private static ShoppingItem ReadShoppingItem(SqliteDataReader r) => new()
+    {
+        Id              = r.GetInt32(r.GetOrdinal("Id")),
+        ScryfallId      = r.GetString(r.GetOrdinal("ScryfallId")),
+        Name            = r.GetString(r.GetOrdinal("Name")),
+        SetCode         = r.GetString(r.GetOrdinal("SetCode")),
+        SetName         = r.GetString(r.GetOrdinal("SetName")),
+        CollectorNumber = r.GetString(r.GetOrdinal("CollectorNumber")),
+        ManaCost        = r.GetString(r.GetOrdinal("ManaCost")),
+        TypeLine        = r.GetString(r.GetOrdinal("TypeLine")),
+        ColorIdentity   = r.GetString(r.GetOrdinal("ColorIdentity")),
+        Rarity          = r.GetString(r.GetOrdinal("Rarity")),
+        Added           = DateTime.Parse(r.GetString(r.GetOrdinal("Added"))),
+        PlaceholderCardId = r.IsDBNull(r.GetOrdinal("PlaceholderCardId")) ? null : r.GetInt32(r.GetOrdinal("PlaceholderCardId"))
+    };
+
+    // --- Decks ---
+
+    public List<Deck> GetAllDecks()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Decks ORDER BY Name";
+        using var reader = cmd.ExecuteReader();
+        var decks = new List<Deck>();
+        while (reader.Read()) decks.Add(ReadDeck(reader));
+        return decks;
+    }
+
+    public Deck? GetDeckWithCards(int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        Deck? deck = null;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT * FROM Decks WHERE Id = $id";
+            cmd.Parameters.AddWithValue("$id", deckId);
+            using var r = cmd.ExecuteReader();
+            if (r.Read()) deck = ReadDeck(r);
+        }
+        if (deck == null) return null;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT dc.*, c.* FROM DeckCards dc
+                JOIN Cards c ON c.Id = dc.CardId
+                WHERE dc.DeckId = $deckId
+                """;
+            cmd.Parameters.AddWithValue("$deckId", deckId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                deck.Cards.Add(new DeckCard
+                {
+                    Id = r.GetInt32(r.GetOrdinal("Id")),
+                    DeckId = deckId,
+                    CardId = r.GetInt32(r.GetOrdinal("CardId")),
+                    Quantity = r.GetInt32(r.GetOrdinal("Quantity")),
+                    IsSideboard = r.GetInt32(r.GetOrdinal("IsSideboard")) == 1,
+                    IsCommander = r.GetInt32(r.GetOrdinal("IsCommander")) == 1,
+                    Card = ReadCard(r)
+                });
+            }
+        }
+        return deck;
+    }
+
+    public int AddDeck(Deck deck)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO Decks (Name, Description, Format, Created)
+            VALUES ($name, $desc, $format, $created);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("$name", deck.Name);
+        cmd.Parameters.AddWithValue("$desc", (object?)deck.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$format", (object?)deck.Format ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$created", deck.Created.ToString("o"));
+        deck.Id = Convert.ToInt32(cmd.ExecuteScalar());
+        return deck.Id;
+    }
+
+    public void UpdateDeck(Deck deck)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Decks SET Name=$name, Description=$desc, Format=$format, CommanderColorIdentity=$cci WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$name", deck.Name);
+        cmd.Parameters.AddWithValue("$desc", (object?)deck.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$format", (object?)deck.Format ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$cci", (object?)deck.CommanderColorIdentity ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$id", deck.Id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteDeck(int id)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Decks WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void AddCardToDeck(int deckId, int cardId, int quantity, bool isSideboard, bool isCommander = false)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO DeckCards (DeckId, CardId, Quantity, IsSideboard, IsCommander)
+            VALUES ($deckId, $cardId, $qty, $side, $isCommander)
+            """;
+        cmd.Parameters.AddWithValue("$deckId", deckId);
+        cmd.Parameters.AddWithValue("$cardId", cardId);
+        cmd.Parameters.AddWithValue("$qty", quantity);
+        cmd.Parameters.AddWithValue("$side", isSideboard ? 1 : 0);
+        cmd.Parameters.AddWithValue("$isCommander", isCommander ? 1 : 0);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void RemoveCardFromDeck(int deckCardId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM DeckCards WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", deckCardId);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void SetDeckCardCommander(int deckId, int? commanderDeckCardId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        // Clear all commander flags for this deck first
+        cmd.CommandText = "UPDATE DeckCards SET IsCommander = 0 WHERE DeckId = $deckId";
+        cmd.Parameters.AddWithValue("$deckId", deckId);
+        cmd.ExecuteNonQuery();
+        if (commanderDeckCardId.HasValue)
+        {
+            cmd.CommandText = "UPDATE DeckCards SET IsCommander = 1 WHERE Id = $id";
+            cmd.Parameters.Clear();
+            cmd.Parameters.AddWithValue("$id", commanderDeckCardId.Value);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    private static Deck ReadDeck(SqliteDataReader r) => new()
+    {
+        Id = r.GetInt32(r.GetOrdinal("Id")),
+        Name = r.GetString(r.GetOrdinal("Name")),
+        Description = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description")),
+        Format = r.IsDBNull(r.GetOrdinal("Format")) ? null : r.GetString(r.GetOrdinal("Format")),
+        Created = DateTime.Parse(r.GetString(r.GetOrdinal("Created"))),
+        CommanderColorIdentity = r.IsDBNull(r.GetOrdinal("CommanderColorIdentity")) ? null : r.GetString(r.GetOrdinal("CommanderColorIdentity"))
+    };
+
+    // --- Binders ---
+
+    public List<Binder> GetAllBinders()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM Binders ORDER BY Name";
+        using var reader = cmd.ExecuteReader();
+        var binders = new List<Binder>();
+        while (reader.Read()) binders.Add(ReadBinder(reader));
+        return binders;
+    }
+
+    public Binder? GetBinderWithCards(int binderId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        Binder? binder = null;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT * FROM Binders WHERE Id = $id";
+            cmd.Parameters.AddWithValue("$id", binderId);
+            using var r = cmd.ExecuteReader();
+            if (r.Read()) binder = ReadBinder(r);
+        }
+        if (binder == null) return null;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT bc.*, c.* FROM BinderCards bc
+                JOIN Cards c ON c.Id = bc.CardId
+                WHERE bc.BinderId = $binderId
+                ORDER BY bc.SlotIndex
+                """;
+            cmd.Parameters.AddWithValue("$binderId", binderId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                binder.Cards.Add(new BinderCard
+                {
+                    Id = r.GetInt32(r.GetOrdinal("Id")),
+                    BinderId = binderId,
+                    CardId = r.GetInt32(r.GetOrdinal("CardId")),
+                    Quantity = r.GetInt32(r.GetOrdinal("Quantity")),
+                    SlotIndex = r.GetInt32(r.GetOrdinal("SlotIndex")),
+                    Card = ReadCard(r)
+                });
+            }
+        }
+        return binder;
+    }
+
+    public int AddBinder(Binder binder)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO Binders (Name, Description, Created)
+            VALUES ($name, $desc, $created);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("$name", binder.Name);
+        cmd.Parameters.AddWithValue("$desc", (object?)binder.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$created", binder.Created.ToString("o"));
+        binder.Id = Convert.ToInt32(cmd.ExecuteScalar());
+        return binder.Id;
+    }
+
+    public void UpdateBinder(Binder binder)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Binders SET Name=$name, Description=$desc WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$name", binder.Name);
+        cmd.Parameters.AddWithValue("$desc", (object?)binder.Description ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$id", binder.Id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void DeleteBinder(int id)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Binders WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void AddCardToBinder(int binderId, int cardId, int quantity, int slotIndex)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO BinderCards (BinderId, CardId, Quantity, SlotIndex)
+            VALUES ($binderId, $cardId, $qty, $slot)
+            """;
+        cmd.Parameters.AddWithValue("$binderId", binderId);
+        cmd.Parameters.AddWithValue("$cardId", cardId);
+        cmd.Parameters.AddWithValue("$qty", quantity);
+        cmd.Parameters.AddWithValue("$slot", slotIndex);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void RemoveCardFromBinder(int binderCardId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM BinderCards WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", binderCardId);
+        cmd.ExecuteNonQuery();
+    }
+
+    private static Binder ReadBinder(SqliteDataReader r) => new()
+    {
+        Id = r.GetInt32(r.GetOrdinal("Id")),
+        Name = r.GetString(r.GetOrdinal("Name")),
+        Description = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description")),
+        Created = DateTime.Parse(r.GetString(r.GetOrdinal("Created")))
+    };
+}

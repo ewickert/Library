@@ -1,0 +1,88 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Library.Views.SearchHelpWindow"
+        Title="Search Syntax Help"
+        Width="540" Height="560"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <ScrollViewer Margin="20">
+    <StackPanel Spacing="16">
+
+      <TextBlock Text="Search Syntax" FontSize="20" FontWeight="Bold" />
+
+      <TextBlock TextWrapping="Wrap" Opacity="0.7">
+        Type plain text to search by name. Use keyword:value pairs for precise filtering.
+        Multiple filters are ANDed. Use "or" to separate alternatives.
+      </TextBlock>
+
+      <!-- Keywords table -->
+      <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+              CornerRadius="6" Padding="12">
+        <StackPanel Spacing="0">
+          <TextBlock Text="Keywords" FontWeight="SemiBold" Margin="0,0,0,8" />
+          <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+                RowSpacing="6">
+            <TextBlock Grid.Row="0" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="t:  type:" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="Type line — t:creature, t:legendary, t:instant" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="1" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="c:  color:" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="Color identity — c:wu, c:m (multi), c:c (colorless)" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="2" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="id: identity:" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="Cards that fit in a commander deck — id:uw" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="3" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="r:  rarity:" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="Rarity — r:c  r:u  r:r  r:m  (common/uncommon/rare/mythic)" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="4" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="s:  set:  e:" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="Set code or name — s:mkm, e:dom" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="5" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="cmc:  mv:" />
+            <TextBlock Grid.Row="5" Grid.Column="1" Text="Mana value — cmc>=5, mv=3, cmc&lt;=2" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="6" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="foil:" />
+            <TextBlock Grid.Row="6" Grid.Column="1" Text="Foil flag — foil:yes, foil:no, -foil:yes" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="7" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="lang:" />
+            <TextBlock Grid.Row="7" Grid.Column="1" Text="Language — lang:en, lang:de" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="8" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="condition:" />
+            <TextBlock Grid.Row="8" Grid.Column="1" Text="Card condition — condition:nm, condition:lp" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="9" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="q:  qty:" />
+            <TextBlock Grid.Row="9" Grid.Column="1" Text="Quantity — q>=4, qty=1" TextWrapping="Wrap" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- Operators -->
+      <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+              CornerRadius="6" Padding="12">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Operators" FontWeight="SemiBold" />
+          <TextBlock FontFamily="Courier New" FontSize="12"
+                     Text=":   =   !=   &lt;   &lt;=   &gt;   &gt;=" />
+          <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="12">
+            Colon (:) works like &gt;= for numbers and "contains" for text.
+            Prefix any token with - to negate it.
+          </TextBlock>
+        </StackPanel>
+      </Border>
+
+      <!-- Examples -->
+      <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+              CornerRadius="6" Padding="12">
+        <StackPanel Spacing="6">
+          <TextBlock Text="Examples" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="5" ColumnSpacing="12">
+            <TextBlock Grid.Row="0" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="t:creature c:u" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="Blue creatures" Opacity="0.7" />
+            <TextBlock Grid.Row="1" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="t:creature c:u cmc&lt;=3" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="Blue creatures with mana value 3 or less" Opacity="0.7" />
+            <TextBlock Grid.Row="2" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="r>=r s:mkm" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="Rare or better from Murders at Karlov Manor" Opacity="0.7" />
+            <TextBlock Grid.Row="3" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="-t:land q>=4" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="Non-lands with 4+ copies" Opacity="0.7" />
+            <TextBlock Grid.Row="4" Grid.Column="0" FontFamily="Courier New" FontSize="12" Text="t:instant or t:sorcery" />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="Instants or sorceries" Opacity="0.7" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <Button Content="Close" HorizontalAlignment="Right" Click="OnCloseClick" Padding="16,6" />
+
+    </StackPanel>
+  </ScrollViewer>
+</Window>

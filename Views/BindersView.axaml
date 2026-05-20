@@ -1,0 +1,179 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Library.ViewModels"
+             xmlns:models="using:Library.Models"
+             x:Class="Library.Views.BindersView"
+             x:DataType="vm:BindersViewModel">
+
+  <Grid ColumnDefinitions="220,*">
+
+    <!-- Binder list sidebar -->
+    <DockPanel Grid.Column="0" Margin="8,8,4,8">
+      <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
+        <TextBlock Text="Binders" FontWeight="Bold" FontSize="14" />
+        <Button Content="+ New Binder" Command="{Binding StartCreateBinderCommand}" HorizontalAlignment="Stretch" />
+
+        <Border IsVisible="{Binding IsCreatingBinder}"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                CornerRadius="6" Padding="8">
+          <StackPanel Spacing="6">
+            <TextBox Text="{Binding NewBinderName}" Watermark="Binder name *" />
+            <TextBox Text="{Binding NewBinderDescription}" Watermark="Description" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Content="Create" Command="{Binding ConfirmCreateBinderCommand}" Classes="accent" />
+              <Button Content="Cancel" Command="{Binding CancelCreateBinderCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <ListBox ItemsSource="{Binding Binders}" SelectedItem="{Binding SelectedBinder}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="models:Binder">
+            <StackPanel>
+              <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Description}" FontSize="11" Opacity="0.6" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <!-- Binder detail -->
+    <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="4,8,8,8">
+
+      <!-- Header toolbar -->
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8"
+                  IsVisible="{Binding SelectedBinder, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Text="{Binding SelectedBinder.Name}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+        <TextBox Text="{Binding SearchText}" Watermark="Search cards…" Width="200" />
+        <Button Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"
+                Padding="6,2" FontWeight="Bold" VerticalAlignment="Center" />
+        <Button Command="{Binding ToggleViewCommand}" VerticalAlignment="Center" Padding="8,4">
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="13" />
+            <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="13" />
+          </StackPanel>
+        </Button>
+        <Button Content="Delete Binder" Command="{Binding DeleteBinderCommand}"
+                Background="#CC3300" Foreground="White" VerticalAlignment="Center" />
+      </StackPanel>
+
+      <!-- Grid view -->
+      <ScrollViewer x:Name="GridScrollViewer" Grid.Row="1"
+                    IsVisible="{Binding IsGridView}"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding BinderSlots}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel Orientation="Horizontal" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:BinderCardSlotViewModel">
+              <Border Width="{Binding $parent[UserControl].((vm:BindersViewModel)DataContext).TileWidth}"
+                      Height="{Binding $parent[UserControl].((vm:BindersViewModel)DataContext).TileHeight}"
+                      Margin="6" CornerRadius="8"
+                      ClipToBounds="True" ToolTip.ShowDelay="200"
+                      Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                <ToolTip.Tip>
+                  <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
+                    <Panel>
+                      <Image Source="{Binding Image}" MaxWidth="280" MaxHeight="392" Stretch="Uniform"
+                             IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                      <TextBlock Text="{Binding Card.Name}" Foreground="White" FontSize="13" FontWeight="Bold"
+                                 TextWrapping="Wrap" MaxWidth="268" Margin="4"
+                                 IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}" />
+                    </Panel>
+                  </Border>
+                </ToolTip.Tip>
+                <Panel>
+                  <!-- Card image -->
+                  <Image Source="{Binding Image}" Stretch="UniformToFill"
+                         IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                  <!-- Loading spinner -->
+                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                              IsVisible="{Binding IsLoading}" Spacing="6">
+                    <ProgressBar IsIndeterminate="True" Width="80" />
+                    <TextBlock Text="{Binding Card.Name}" FontSize="10" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" TextAlignment="Center" Opacity="0.6" />
+                  </StackPanel>
+
+                  <!-- No image placeholder -->
+                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="4"
+                              IsVisible="{Binding IsLoading, Converter={x:Static BoolConverters.Not}}">
+                    <Panel IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
+                      <StackPanel Spacing="4" HorizontalAlignment="Center">
+                        <TextBlock Text="🃏" FontSize="32" HorizontalAlignment="Center" />
+                        <TextBlock Text="{Binding Card.Name}" FontSize="10" TextWrapping="Wrap"
+                                   MaxWidth="140" HorizontalAlignment="Center" TextAlignment="Center" />
+                      </StackPanel>
+                    </Panel>
+                  </StackPanel>
+
+                  <!-- Foil shimmer badge -->
+                  <Border IsVisible="{Binding Card.Foil}"
+                          Background="#88FFD700" CornerRadius="4"
+                          Padding="4,2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                    <TextBlock Text="✦ Foil" FontSize="9" FontWeight="Bold" Foreground="#805500" />
+                  </Border>
+
+
+                  <!-- Condition badge -->
+                  <Border Background="#AA000000" CornerRadius="0,0,8,8"
+                          VerticalAlignment="Bottom" Padding="6,3">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <TextBlock Text="{Binding Card.Name}" FontSize="10" Foreground="White"
+                                 TextTrimming="CharacterEllipsis" MaxWidth="100" />
+                      <TextBlock Text="{Binding Card.Condition}" FontSize="10" Foreground="#AAAAAA" />
+                    </StackPanel>
+                  </Border>
+                </Panel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+
+      <!-- List view -->
+      <DataGrid Grid.Row="1"
+                ItemsSource="{Binding BinderCards}"
+                IsReadOnly="True"
+                AutoGenerateColumns="False"
+                GridLinesVisibility="Horizontal"
+                IsVisible="{Binding !IsGridView}">
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Slot" Binding="{Binding SlotIndex}" Width="50" />
+          <DataGridTextColumn Header="Name" Binding="{Binding Card.Name}" Width="*" />
+          <DataGridTextColumn Header="Set" Binding="{Binding Card.SetCode}" Width="50" />
+          <DataGridTextColumn Header="#" Binding="{Binding Card.CollectorNumber}" Width="50" />
+          <DataGridTemplateColumn Header="Foil" Width="50">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <CheckBox IsChecked="{Binding Card.Foil, Mode=OneWay}" IsHitTestVisible="False" HorizontalAlignment="Center" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="Condition" Binding="{Binding Card.Condition}" Width="70" />
+          <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="50" />
+          <DataGridTemplateColumn Header="" Width="80">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate x:DataType="models:BinderCard">
+                <Button Content="Remove"
+                        Command="{Binding $parent[DataGrid].((vm:BindersViewModel)DataContext).RemoveCardFromBinderCommand}"
+                        CommandParameter="{Binding}"
+                        Padding="4,2" FontSize="11" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <TextBlock Grid.Row="1" Text="Select a binder to view its cards."
+                 IsVisible="{Binding SelectedBinder, Converter={x:Static ObjectConverters.IsNull}}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" />
+    </Grid>
+  </Grid>
+</UserControl>

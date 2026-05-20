@@ -1,0 +1,26 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Library.ViewModels"
+        xmlns:views="using:Library.Views"
+        x:Class="Library.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Magic: The Gathering Library"
+        Width="1200" Height="800"
+        WindowStartupLocation="CenterScreen">
+
+  <TabControl SelectedIndex="{Binding SelectedTabIndex}">
+    <TabItem Header="Collection">
+      <views:CollectionView DataContext="{Binding Collection}" />
+    </TabItem>
+    <TabItem Header="Decks">
+      <views:DecksView DataContext="{Binding Decks}" />
+    </TabItem>
+    <TabItem Header="Binders">
+      <views:BindersView DataContext="{Binding Binders}" />
+    </TabItem>
+    <TabItem Header="🛒 Shopping">
+      <views:ShoppingView DataContext="{Binding Shopping}" />
+    </TabItem>
+  </TabControl>
+
+</Window>

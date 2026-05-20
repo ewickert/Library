@@ -1,0 +1,401 @@
+using Avalonia.Media.Imaging;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text.Json;
+
+namespace Library.Services;
+
+public class ScryfallService
+{
+    /// <summary>Set when the single application instance is created. Used by controls inside ToolTip popups that lack a MainWindow visual root.</summary>
+    public static ScryfallService? Instance { get; private set; }
+
+    // Separate clients: one for the JSON API, one for image CDN (different base URL)
+    private static readonly HttpClient _api;
+    private static readonly HttpClient _cdn;
+
+    // Scryfall rate limit: max 10 req/s — enforce 120ms minimum between API calls
+    private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
+    private static DateTime _lastApiCall = DateTime.MinValue;
+    private const int MinMsBetweenCalls = 120;
+
+    static ScryfallService()
+    {
+        _api = new HttpClient { BaseAddress = new Uri("https://api.scryfall.com/") };
+        _api.DefaultRequestHeaders.UserAgent.ParseAdd("MagicLibraryApp/1.0");
+        _api.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+        _cdn = new HttpClient();
+        _cdn.DefaultRequestHeaders.UserAgent.ParseAdd("MagicLibraryApp/1.0");
+    }
+
+    private readonly string _cacheDir;
+
+    public ScryfallService()
+    {
+        Instance = this;
+        _cacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MagicLibrary", "ImageCache");
+        Directory.CreateDirectory(_cacheDir);
+    }
+
+    public async Task<Bitmap?> GetCardImageAsync(string scryfallId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(scryfallId)) return null;
+
+        var cachePath = Path.Combine(_cacheDir, $"{scryfallId}.jpg");
+        if (File.Exists(cachePath))
+        {
+            try { return new Bitmap(cachePath); } catch { File.Delete(cachePath); }
+        }
+
+        var imageUrl = await GetImageUrlFromScryfallAsync(scryfallId, ct);
+        if (imageUrl == null) return null;
+
+        return await DownloadAndCacheAsync(imageUrl, cachePath, ct);
+    }
+
+    public async Task<Bitmap?> GetCardImageByCollectorAsync(string setCode, string collectorNumber, bool foil, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(setCode) || string.IsNullOrWhiteSpace(collectorNumber)) return null;
+
+        var cacheKey = $"{setCode.ToLower()}_{collectorNumber}_{(foil ? "foil" : "normal")}";
+        var cachePath = Path.Combine(_cacheDir, $"{cacheKey}.jpg");
+        if (File.Exists(cachePath))
+        {
+            try { return new Bitmap(cachePath); } catch { File.Delete(cachePath); }
+        }
+
+        try
+        {
+            var url = $"cards/{Uri.EscapeDataString(setCode.ToLower())}/{Uri.EscapeDataString(collectorNumber)}";
+            var json = await ApiGetAsync(url, ct);
+            if (json == null) return null;
+
+            using var doc = JsonDocument.Parse(json);
+            var imageUrl = ExtractImageUrl(doc.RootElement);
+            if (imageUrl == null) return null;
+
+            return await DownloadAndCacheAsync(imageUrl, cachePath, ct);
+        }
+        catch { return null; }
+    }
+
+    private async Task<string?> GetImageUrlFromScryfallAsync(string scryfallId, CancellationToken ct)
+    {
+        try
+        {
+            var json = await ApiGetAsync($"cards/{scryfallId}", ct);
+            if (json == null) return null;
+            using var doc = JsonDocument.Parse(json);
+            return ExtractImageUrl(doc.RootElement);
+        }
+        catch { return null; }
+    }
+
+    private async Task<Bitmap?> DownloadAndCacheAsync(string imageUrl, string cachePath, CancellationToken ct)
+    {
+        try
+        {
+            var bytes = await _cdn.GetByteArrayAsync(imageUrl, ct);
+            await File.WriteAllBytesAsync(cachePath, bytes, ct);
+            using var ms = new MemoryStream(bytes);
+            return new Bitmap(ms);
+        }
+        catch { return null; }
+    }
+
+    // Rate-limited API wrapper
+    private static async Task<string?> ApiGetAsync(string relativeUrl, CancellationToken ct)
+    {
+        await _rateLimiter.WaitAsync(ct);
+        try
+        {
+            var elapsed = (DateTime.UtcNow - _lastApiCall).TotalMilliseconds;
+            if (elapsed < MinMsBetweenCalls)
+                await Task.Delay((int)(MinMsBetweenCalls - elapsed), ct);
+
+            var response = await _api.GetAsync(relativeUrl, ct);
+            _lastApiCall = DateTime.UtcNow;
+
+            if (!response.IsSuccessStatusCode) return null;
+            return await response.Content.ReadAsStringAsync(ct);
+        }
+        finally
+        {
+            _rateLimiter.Release();
+        }
+    }
+
+    private static string? ExtractImageUrl(JsonElement card)
+    {
+        if (card.TryGetProperty("image_uris", out var imageUris))
+        {
+            if (imageUris.TryGetProperty("normal", out var normal)) return normal.GetString();
+            if (imageUris.TryGetProperty("large", out var large)) return large.GetString();
+            if (imageUris.TryGetProperty("small", out var small)) return small.GetString();
+        }
+        // Double-faced card: use first face
+        if (card.TryGetProperty("card_faces", out var faces) && faces.GetArrayLength() > 0)
+        {
+            var face = faces[0];
+            if (face.TryGetProperty("image_uris", out var faceUris))
+            {
+                if (faceUris.TryGetProperty("normal", out var normal)) return normal.GetString();
+                if (faceUris.TryGetProperty("large", out var large)) return large.GetString();
+            }
+        }
+        return null;
+    }
+
+    public async Task<ScryfallCardData?> SearchCardAsync(string name, CancellationToken ct = default)
+    {
+        try
+        {
+            var json = await ApiGetAsync($"cards/named?fuzzy={Uri.EscapeDataString(name)}", ct);
+            if (json == null) return null;
+            using var doc = JsonDocument.Parse(json);
+            return ParseCardData(doc.RootElement);
+        }
+        catch { return null; }
+    }
+
+    public async Task<List<ScryfallCardData>> SearchCardsAsync(string query, CancellationToken ct = default)
+    {
+        try
+        {
+            var json = await ApiGetAsync($"cards/search?q={Uri.EscapeDataString(query)}&order=name", ct);
+            if (json == null) return [];
+            using var doc = JsonDocument.Parse(json);
+            var results = new List<ScryfallCardData>();
+            if (doc.RootElement.TryGetProperty("data", out var data))
+            {
+                foreach (var card in data.EnumerateArray())
+                {
+                    var parsed = ParseCardData(card);
+                    if (parsed != null) results.Add(parsed);
+                    if (results.Count >= 20) break;
+                }
+            }
+            return results;
+        }
+        catch { return []; }
+    }
+
+    /// <summary>
+    /// Runs a full Scryfall query and returns the set of matching Scryfall IDs and card names,
+    /// paginating up to 6 pages (~1050 cards). Used to filter the local collection by Scryfall syntax.
+    /// </summary>
+    public async Task<ScryfallSearchResult> SearchMatchingIdsAsync(string query, CancellationToken ct = default)
+    {
+        var ids   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(query)) return new ScryfallSearchResult(ids, names);
+
+        const string baseUrl = "https://api.scryfall.com/";
+        string? relUrl = $"cards/search?q={Uri.EscapeDataString(query)}&order=name&unique=cards";
+
+        try
+        {
+            for (int page = 0; page < 6 && relUrl != null; page++)
+            {
+                if (ct.IsCancellationRequested) break;
+                var json = await ApiGetAsync(relUrl, ct);
+                if (json == null) break;
+
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("data", out var data))
+                    foreach (var card in data.EnumerateArray())
+                    {
+                        if (card.TryGetProperty("id",   out var idEl))   ids.Add(idEl.GetString() ?? string.Empty);
+                        if (card.TryGetProperty("name", out var nameEl)) names.Add(nameEl.GetString() ?? string.Empty);
+                    }
+
+                relUrl = null;
+                if (root.TryGetProperty("has_more", out var hasMore) && hasMore.GetBoolean() &&
+                    root.TryGetProperty("next_page", out var nextPage))
+                {
+                    var next = nextPage.GetString();
+                    if (next != null && next.StartsWith(baseUrl))
+                        relUrl = next[baseUrl.Length..];
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { /* return partial results on network error */ }
+
+        return new ScryfallSearchResult(ids, names);
+    }
+
+    /// <summary>Returns all printings of a card by exact name using Scryfall unique=prints.</summary>
+    public async Task<List<ScryfallCardData>> GetAlternatePrintingsAsync(string cardName, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(cardName)) return [];
+        try
+        {
+            // !"exact name" searches for that exact name; unique=prints returns one result per printing
+            var query = $"!\"{cardName}\"";
+            var json = await ApiGetAsync($"cards/search?q={Uri.EscapeDataString(query)}&unique=prints&order=released", ct);
+            if (json == null) return [];
+            using var doc = JsonDocument.Parse(json);
+            var results = new List<ScryfallCardData>();
+            if (doc.RootElement.TryGetProperty("data", out var data))
+            {
+                foreach (var card in data.EnumerateArray())
+                {
+                    var parsed = ParseCardData(card);
+                    if (parsed != null) results.Add(parsed);
+                    if (results.Count >= 80) break;
+                }
+            }
+            return results;
+        }
+        catch { return []; }
+    }
+
+    private static ScryfallCardData? ParseCardData(JsonElement card)
+    {
+        try
+        {
+            // color_identity is an array like ["W","U","B"]
+            string colorIdentity = string.Empty;
+            if (card.TryGetProperty("color_identity", out var ci))
+                colorIdentity = string.Join(",", ci.EnumerateArray().Select(e => e.GetString() ?? string.Empty).Where(s => s.Length > 0));
+
+            // mana_cost may be absent on tokens/lands
+            string manaCost = string.Empty;
+            if (card.TryGetProperty("mana_cost", out var mc))
+                manaCost = mc.GetString() ?? string.Empty;
+
+            // type_line may be absent on some objects
+            string typeLine = string.Empty;
+            if (card.TryGetProperty("type_line", out var tl))
+                typeLine = tl.GetString() ?? string.Empty;
+
+            return new ScryfallCardData
+            {
+                ScryfallId = card.GetProperty("id").GetString() ?? string.Empty,
+                Name = card.GetProperty("name").GetString() ?? string.Empty,
+                SetCode = card.GetProperty("set").GetString() ?? string.Empty,
+                SetName = card.GetProperty("set_name").GetString() ?? string.Empty,
+                CollectorNumber = card.GetProperty("collector_number").GetString() ?? string.Empty,
+                Rarity = card.GetProperty("rarity").GetString() ?? string.Empty,
+                ColorIdentity = colorIdentity,
+                ManaCost = manaCost,
+                TypeLine = typeLine,
+            };
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Returns the color identity string (e.g. "W,U,B") for a card by Scryfall ID.</summary>
+    public async Task<string?> GetColorIdentityAsync(string scryfallId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(scryfallId)) return null;
+        try
+        {
+            var json = await ApiGetAsync($"cards/{scryfallId}", ct);
+            if (json == null) return null;
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("color_identity", out var ci))
+                return string.Join(",", ci.EnumerateArray().Select(e => e.GetString() ?? "").Where(s => s.Length > 0));
+            return string.Empty;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Fetches ColorIdentity, ManaCost, and TypeLine for every card in <paramref name="cards"/>
+    /// that is missing at least one of those fields, writing results back via <paramref name="onResult"/>.
+    /// Reports progress as (completed, total).
+    /// </summary>
+    public async Task BackfillCardMetadataAsync(
+        IReadOnlyList<Library.Models.Card> cards,
+        Action<Library.Models.Card, string?, string?, string?> onResult,
+        IProgress<(int done, int total)>? progress = null,
+        CancellationToken ct = default)
+    {
+        int total = cards.Count;
+        int done  = 0;
+
+        foreach (var card in cards)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            string? ci = null, mc = null, tl = null;
+
+            // Prefer fetching by ScryfallId (single call, all fields at once)
+            if (!string.IsNullOrEmpty(card.ScryfallId))
+            {
+                try
+                {
+                    var json = await ApiGetAsync($"cards/{card.ScryfallId}", ct);
+                    if (json != null)
+                    {
+                        using var doc = JsonDocument.Parse(json);
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("color_identity", out var ciEl))
+                            ci = string.Join(",", ciEl.EnumerateArray()
+                                .Select(e => e.GetString() ?? "").Where(s => s.Length > 0));
+                        if (root.TryGetProperty("mana_cost", out var mcEl))
+                            mc = mcEl.GetString();
+                        if (root.TryGetProperty("type_line", out var tlEl))
+                            tl = tlEl.GetString();
+                    }
+                }
+                catch (OperationCanceledException) { break; }
+                catch { /* leave nulls, skip */ }
+            }
+            else if (!string.IsNullOrEmpty(card.SetCode) && !string.IsNullOrEmpty(card.CollectorNumber))
+            {
+                // Fall back to set+collector-number lookup
+                try
+                {
+                    var json = await ApiGetAsync(
+                        $"cards/{Uri.EscapeDataString(card.SetCode.ToLower())}/{Uri.EscapeDataString(card.CollectorNumber)}", ct);
+                    if (json != null)
+                    {
+                        using var doc = JsonDocument.Parse(json);
+                        var root = doc.RootElement;
+                        if (root.TryGetProperty("color_identity", out var ciEl))
+                            ci = string.Join(",", ciEl.EnumerateArray()
+                                .Select(e => e.GetString() ?? "").Where(s => s.Length > 0));
+                        if (root.TryGetProperty("mana_cost", out var mcEl))
+                            mc = mcEl.GetString();
+                        if (root.TryGetProperty("type_line", out var tlEl))
+                            tl = tlEl.GetString();
+                    }
+                }
+                catch (OperationCanceledException) { break; }
+                catch { }
+            }
+
+            onResult(card, ci, mc, tl);
+            progress?.Report((++done, total));
+        }
+    }
+}
+
+public class ScryfallCardData
+{
+    public string ScryfallId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string SetCode { get; set; } = string.Empty;
+    public string SetName { get; set; } = string.Empty;
+    public string CollectorNumber { get; set; } = string.Empty;
+    public string Rarity { get; set; } = string.Empty;
+    /// <summary>Comma-separated color identity, e.g. "W,U,B".</summary>
+    public string ColorIdentity { get; set; } = string.Empty;
+    /// <summary>Mana cost string, e.g. "{2}{U}{B}".</summary>
+    public string ManaCost { get; set; } = string.Empty;
+    /// <summary>Type line, e.g. "Legendary Creature — Human Wizard".</summary>
+    public string TypeLine { get; set; } = string.Empty;
+}
+
+/// <summary>Result of a Scryfall full-syntax search: the set of matching Scryfall IDs and card names.</summary>
+public record ScryfallSearchResult(
+    HashSet<string> ScryfallIds,
+    HashSet<string> Names);

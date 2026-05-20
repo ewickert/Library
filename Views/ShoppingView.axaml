@@ -1,0 +1,71 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Library.ViewModels"
+             x:Class="Library.Views.ShoppingView"
+             x:DataType="vm:ShoppingViewModel">
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="8,8,8,4">
+      <TextBlock Text="🛒 Shopping List" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+      <TextBox Text="{Binding SearchText}" Watermark="Filter…" Width="200" />
+    </StackPanel>
+
+    <!-- Items list -->
+    <ScrollViewer Grid.Row="1">
+      <ItemsControl ItemsSource="{Binding Items}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ShoppingItemViewModel">
+            <Border Margin="8,4" Padding="8" CornerRadius="6"
+                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}"
+                    BoxShadow="0 1 4 0 #22000000">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+
+                <!-- Card thumbnail -->
+                <Border Grid.Column="0" Width="60" Height="84" CornerRadius="4"
+                        ClipToBounds="True" Margin="0,0,12,0">
+                  <Panel>
+                    <TextBlock IsVisible="{Binding IsLoadingImage}"
+                               Text="…" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemBaseMediumColor}" />
+                    <Image Source="{Binding Image}" Stretch="UniformToFill"
+                           IsVisible="{Binding !IsLoadingImage}" />
+                  </Panel>
+                </Border>
+
+                <!-- Card info -->
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
+                  <TextBlock Text="{Binding TypeLine}" FontSize="11"
+                             Foreground="{DynamicResource SystemBaseMediumColor}" />
+                  <TextBlock FontSize="11" Foreground="{DynamicResource SystemBaseMediumColor}">
+                    <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding SetName}" />
+                  </TextBlock>
+                  <TextBlock FontSize="11" Foreground="{DynamicResource SystemBaseMediumColor}">
+                    <Run Text="{Binding ManaCost}" /><Run Text="  " /><Run Text="{Binding Rarity}" />
+                  </TextBlock>
+                </StackPanel>
+
+                <!-- Actions -->
+                <StackPanel Grid.Column="2" Orientation="Vertical" Spacing="6"
+                            VerticalAlignment="Center" Margin="12,0,0,0">
+                  <Button Content="Add to Deck"
+                          Command="{Binding AddToDeckCommand}"
+                          ToolTip.Tip="Add to currently selected deck"
+                          Padding="8,4" />
+                  <Button Content="Remove"
+                          Command="{Binding RemoveCommand}"
+                          Foreground="Red"
+                          Padding="8,4" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+  </Grid>
+
+</UserControl>

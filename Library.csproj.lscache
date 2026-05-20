@@ -87,7 +87,9 @@ Views/
  AddEditCardWindow.axaml.cs
  BindersView.axaml.cs
  CollectionView.axaml.cs
- Controls/CardImageControl.axaml.cs
+ Controls/
+  CardImageControl.axaml.cs
+  ManaSymbolsControl.cs
  DecksView.axaml.cs
  SearchHelpWindow.axaml.cs
  ShoppingView.axaml.cs

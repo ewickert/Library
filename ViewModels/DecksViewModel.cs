@@ -240,6 +240,24 @@ public partial class DecksViewModel : ObservableObject
         ReloadDeckCards();
     }
 
+    /// <summary>
+    /// Adds a Scryfall card to both the shopping list (as a placeholder) and the current deck.
+    /// Called when dragging from the external Scryfall results into the deck pane.
+    /// </summary>
+    [RelayCommand]
+    private void AddScryfallCardToDeck(ScryfallResultViewModel? result)
+    {
+        if (result == null || SelectedDeck == null) return;
+        _db.AddToShoppingList(result.Data);
+        result.IsOnShoppingList = true;
+        var cardId = _db.GetPlaceholderCardId(result.Data.ScryfallId);
+        if (cardId.HasValue)
+        {
+            _db.AddCardToDeck(SelectedDeck.Id, cardId.Value, 1, false);
+            ReloadDeckCards();
+        }
+    }
+
     /// <summary>Reloads the current deck's card lists and rebuilds slots. Called externally by ShoppingViewModel.</summary>
     public void ReloadDeckCards()
     {

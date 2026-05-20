@@ -20,4 +20,10 @@ public partial class MainWindowViewModel : ObservableObject
         Binders = new BindersViewModel(db, scryfall);
         Shopping = new ShoppingViewModel(db, scryfall, Decks);
     }
+
+    // Tab index 3 = Shopping — reload whenever the user navigates to it
+    partial void OnSelectedTabIndexChanged(int value)
+    {
+        if (value == 3) Shopping.Reload();
+    }
 }

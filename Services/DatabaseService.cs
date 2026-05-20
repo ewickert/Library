@@ -292,6 +292,18 @@ public class DatabaseService
         return Convert.ToInt64(cmd.ExecuteScalar()) > 0;
     }
 
+    /// <summary>Returns the Cards.Id of the placeholder row for the given Scryfall ID, or null if none exists.</summary>
+    public int? GetPlaceholderCardId(string scryfallId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT Id FROM Cards WHERE ScryfallId=$sid AND IsPlaceholder=1 LIMIT 1";
+        cmd.Parameters.AddWithValue("$sid", scryfallId);
+        var val = cmd.ExecuteScalar();
+        return val != null && val != DBNull.Value ? Convert.ToInt32(val) : null;
+    }
+
     /// <summary>
     /// Adds a card to the shopping list, creating a placeholder Card row (Quantity=0, IsPlaceholder=1)
     /// so it can be referenced by deck and binder tables. Returns the new ShoppingItem.Id.
@@ -448,6 +460,25 @@ public class DatabaseService
         var decks = new List<Deck>();
         while (reader.Read()) decks.Add(ReadDeck(reader));
         return decks;
+    }
+
+    /// <summary>Returns the names of all decks that contain a given card (by Cards.Id).</summary>
+    public List<string> GetDeckNamesForCard(int cardId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT d.Name FROM Decks d
+            INNER JOIN DeckCards dc ON dc.DeckId = d.Id
+            WHERE dc.CardId = $cid
+            ORDER BY d.Name
+            """;
+        cmd.Parameters.AddWithValue("$cid", cardId);
+        using var r = cmd.ExecuteReader();
+        var names = new List<string>();
+        while (r.Read()) names.Add(r.GetString(0));
+        return names;
     }
 
     public Deck? GetDeckWithCards(int deckId)

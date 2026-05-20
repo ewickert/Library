@@ -211,9 +211,11 @@
                     <TextBlock FontSize="11" Opacity="0.7">
                       <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding TypeLine}" />
                     </TextBlock>
-                    <TextBlock FontSize="11" Opacity="0.7">
-                      <Run Text="{Binding ManaCost}" /><Run Text="  " /><Run Text="{Binding Rarity}" />
-                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}"
+                          IsVisible="{Binding ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      <TextBlock Text="{Binding Rarity}" FontSize="11" Opacity="0.7" VerticalAlignment="Center" />
+                    </StackPanel>
                   </StackPanel>
                   <Button Grid.Column="1" Command="{Binding ToggleShoppingListCommand}"
                           Padding="8,4" VerticalAlignment="Center">
@@ -256,7 +258,7 @@
                                    TextWrapping="Wrap" MaxWidth="268" />
                         <TextBlock Text="{Binding TypeLine}" Foreground="#CCCCCC" FontSize="11"
                                    TextWrapping="Wrap" MaxWidth="268" />
-                        <TextBlock Text="{Binding ManaCost}" Foreground="#AAAAAA" FontSize="11" />
+                        <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}" />
                       </StackPanel>
                     </Panel>
                   </Border>

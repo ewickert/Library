@@ -15,6 +15,10 @@ public partial class ShoppingViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<ShoppingItemViewModel> _items = new();
     [ObservableProperty] private string _searchText = string.Empty;
 
+    /// Deck names for the filter dropdown. First entry is always "(All decks)".
+    [ObservableProperty] private ObservableCollection<string> _deckFilterOptions = new();
+    [ObservableProperty] private string _selectedDeckFilter = string.Empty;
+
     private List<ShoppingItemViewModel> _allItems = new();
     private CancellationTokenSource? _searchDebounceCts;
 
@@ -31,8 +35,28 @@ public partial class ShoppingViewModel : ObservableObject
         _allItems = _db.GetShoppingList()
                        .Select(s => new ShoppingItemViewModel(s, _db, _scryfall, _decks, Reload))
                        .ToList();
+        RebuildDeckFilterOptions();
         ApplyFilter();
     }
+
+    private void RebuildDeckFilterOptions()
+    {
+        const string all = "(All decks)";
+        var names = _allItems
+            .SelectMany(i => i.DeckNames)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n)
+            .ToList();
+
+        DeckFilterOptions = new ObservableCollection<string>(
+            new[] { all }.Concat(names));
+
+        // Keep current selection if it still exists, else reset to "All"
+        if (!DeckFilterOptions.Contains(SelectedDeckFilter))
+            SelectedDeckFilter = all;
+    }
+
+    partial void OnSelectedDeckFilterChanged(string value) => ApplyFilter();
 
     partial void OnSearchTextChanged(string value)
     {
@@ -48,14 +72,23 @@ public partial class ShoppingViewModel : ObservableObject
 
     private void ApplyFilter()
     {
+        IEnumerable<ShoppingItemViewModel> filtered = _allItems;
+
+        // Deck filter
+        const string all = "(All decks)";
+        if (!string.IsNullOrEmpty(SelectedDeckFilter) && SelectedDeckFilter != all)
+            filtered = filtered.Where(i =>
+                i.DeckNames.Contains(SelectedDeckFilter, StringComparer.OrdinalIgnoreCase));
+
+        // Text search
         var q = SearchText.Trim();
-        var filtered = string.IsNullOrEmpty(q)
-            ? _allItems
-            : _allItems.Where(i =>
+        if (!string.IsNullOrEmpty(q))
+            filtered = filtered.Where(i =>
                 i.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 i.TypeLine.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 i.SetCode.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                i.SetName.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
+                i.SetName.Contains(q, StringComparison.OrdinalIgnoreCase));
+
         Items = new ObservableCollection<ShoppingItemViewModel>(filtered);
     }
 }
@@ -80,6 +113,14 @@ public partial class ShoppingItemViewModel : ObservableObject
     public string TypeLine        => Item.TypeLine;
     public string Rarity          => Item.Rarity;
 
+    /// Deck names this card has been added to (empty if not in any deck yet).
+    public List<string> DeckNames { get; }
+
+    /// Human-readable label like "Deck A, Deck B" or "(no deck)" for display.
+    public string DeckNamesLabel => DeckNames.Count > 0
+        ? string.Join(", ", DeckNames)
+        : "(no deck)";
+
     public ShoppingItemViewModel(ShoppingItem item, DatabaseService db, ScryfallService scryfall,
         DecksViewModel decks, Action reloadParent)
     {
@@ -88,6 +129,9 @@ public partial class ShoppingItemViewModel : ObservableObject
         _scryfall     = scryfall;
         _decks        = decks;
         _reloadParent = reloadParent;
+        DeckNames     = item.PlaceholderCardId.HasValue
+            ? db.GetDeckNamesForCard(item.PlaceholderCardId.Value)
+            : new List<string>();
         _ = LoadImageAsync();
     }
 

@@ -382,8 +382,8 @@
                       <StackPanel Grid.Column="0" Spacing="1">
                         <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" />
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                          <TextBlock Text="{Binding ManaCost}" FontSize="10" Opacity="0.7"
-                                     IsVisible="{Binding ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                          <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}"
+                              IsVisible="{Binding ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                           <TextBlock Text="|" FontSize="10" Opacity="0.3"
                                      IsVisible="{Binding TypeLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                           <TextBlock Text="{Binding TypeLine}" FontSize="10" Opacity="0.6"
@@ -508,7 +508,7 @@
           <!-- List view -->
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                         IsVisible="{Binding !IsCollectionExternalGridView}">
-            <ItemsControl ItemsSource="{Binding CollectionExternalResults}">
+            <ItemsControl x:Name="ExternalResultsListView" ItemsSource="{Binding CollectionExternalResults}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ScryfallResultViewModel">
                   <Border Margin="0,2" Padding="8,5" CornerRadius="5"
@@ -519,9 +519,11 @@
                         <TextBlock FontSize="10" Opacity="0.7">
                           <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding TypeLine}" />
                         </TextBlock>
-                        <TextBlock FontSize="10" Opacity="0.7">
-                          <Run Text="{Binding ManaCost}" /><Run Text="  " /><Run Text="{Binding Rarity}" />
-                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                          <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}"
+                              IsVisible="{Binding ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                          <TextBlock Text="{Binding Rarity}" FontSize="10" Opacity="0.7" VerticalAlignment="Center" />
+                        </StackPanel>
                       </StackPanel>
                       <Button Grid.Column="1" Command="{Binding ToggleShoppingListCommand}"
                               Padding="6,2" FontSize="11" VerticalAlignment="Center" Margin="4,0,0,0">
@@ -541,7 +543,7 @@
           <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
                         HorizontalScrollBarVisibility="Disabled"
                         IsVisible="{Binding IsCollectionExternalGridView}">
-            <ItemsControl ItemsSource="{Binding CollectionExternalResults}">
+            <ItemsControl x:Name="ExternalResultsGridView" ItemsSource="{Binding CollectionExternalResults}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
                   <WrapPanel Orientation="Horizontal" />
@@ -565,7 +567,7 @@
                                        TextWrapping="Wrap" MaxWidth="268" />
                             <TextBlock Text="{Binding TypeLine}" Foreground="#CCCCCC" FontSize="11"
                                        TextWrapping="Wrap" MaxWidth="268" />
-                            <TextBlock Text="{Binding ManaCost}" Foreground="#AAAAAA" FontSize="11" />
+                            <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}" />
                           </StackPanel>
                         </Panel>
                       </Border>

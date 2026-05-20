@@ -13,10 +13,12 @@ public partial class DecksView : UserControl
 {
     // Drag state
     private Card? _pendingDragCard;
+    private ScryfallResultViewModel? _pendingDragScryfall;
     private Bitmap? _pendingBitmap;
     private Point? _dragStart;
     private bool _isDragging;
     private Card? _dragCard;
+    private ScryfallResultViewModel? _dragScryfall;
     private Bitmap? _dragBitmap;
     private const double DragThreshold = 6;
 
@@ -36,6 +38,8 @@ public partial class DecksView : UserControl
         // Drag sources — tunnel so we get the press before inner controls (buttons etc.)
         CollectionListPane.AddHandler(PointerPressedEvent, OnCollectionPointerPressed, RoutingStrategies.Tunnel);
         CollectionGridPane.AddHandler(PointerPressedEvent, OnCollectionPointerPressed, RoutingStrategies.Tunnel);
+        ExternalResultsListView.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
+        ExternalResultsGridView.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
 
         // Track at root level so we keep events even when the pointer leaves the collection pane
         this.AddHandler(PointerMovedEvent, OnRootPointerMoved, RoutingStrategies.Tunnel);
@@ -75,7 +79,19 @@ public partial class DecksView : UserControl
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         _pendingDragCard = FindCardFromSource(e.Source as Visual, out var bmp);
+        _pendingDragScryfall = null;
         _pendingBitmap = bmp;
+        _dragStart = e.GetPosition(this);
+    }
+
+    private void OnExternalPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        var scryfall = FindScryfallFromSource(e.Source as Visual);
+        if (scryfall == null) return;
+        _pendingDragScryfall = scryfall;
+        _pendingDragCard = null;
+        _pendingBitmap = scryfall.Image;
         _dragStart = e.GetPosition(this);
     }
 
@@ -83,7 +99,7 @@ public partial class DecksView : UserControl
 
     private void OnRootPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_pendingDragCard == null && !_isDragging) return;
+        if (_pendingDragCard == null && _pendingDragScryfall == null && !_isDragging) return;
 
         var pos = e.GetPosition(this);
 
@@ -95,15 +111,17 @@ public partial class DecksView : UserControl
             // Threshold exceeded — commit to drag
             _isDragging = true;
             _dragCard = _pendingDragCard;
+            _dragScryfall = _pendingDragScryfall;
             _dragBitmap = _pendingBitmap;
             _pendingDragCard = null;
+            _pendingDragScryfall = null;
             _pendingBitmap = null;
             _dragStart = null;
 
             e.Pointer.Capture(this); // keep events flowing even outside the window
 
             DragPreviewImage.Source = _dragBitmap;
-            DragPreviewName.Text = _dragCard?.Name ?? string.Empty;
+            DragPreviewName.Text = _dragCard?.Name ?? _dragScryfall?.Name ?? string.Empty;
             DragOverlay.IsVisible = true;
         }
 
@@ -123,11 +141,17 @@ public partial class DecksView : UserControl
 
         var pos = e.GetPosition(this);
         var card = _dragCard;
+        var scryfall = _dragScryfall;
         ResetDragState();
         e.Pointer.Capture(null);
 
-        if (card != null && IsOverControl(DeckPane, pos) && DataContext is DecksViewModel vm)
-            vm.AddCardToDeckCommand.Execute(card);
+        if (DataContext is DecksViewModel vm && IsOverControl(DeckPane, pos))
+        {
+            if (card != null)
+                vm.AddCardToDeckCommand.Execute(card);
+            else if (scryfall != null)
+                vm.AddScryfallCardToDeckCommand.Execute(scryfall);
+        }
     }
 
     private void OnCaptureLost(object? sender, PointerCaptureLostEventArgs e) => ResetDragState();
@@ -136,8 +160,10 @@ public partial class DecksView : UserControl
     {
         _isDragging = false;
         _dragCard = null;
+        _dragScryfall = null;
         _dragBitmap = null;
         _pendingDragCard = null;
+        _pendingDragScryfall = null;
         _pendingBitmap = null;
         _dragStart = null;
         DragOverlay.IsVisible = false;
@@ -151,6 +177,18 @@ public partial class DecksView : UserControl
         var br = control.TranslatePoint(new Point(control.Bounds.Width, control.Bounds.Height), this);
         if (tl is null || br is null) return false;
         return new Rect(tl.Value, br.Value).Contains(ptInThis);
+    }
+
+    private static ScryfallResultViewModel? FindScryfallFromSource(Visual? source)
+    {
+        var element = source as StyledElement;
+        while (element != null)
+        {
+            if (element.DataContext is ScryfallResultViewModel vm) return vm;
+            if (element is ItemsControl) break;
+            element = (element as Visual)?.GetVisualParent() as StyledElement;
+        }
+        return null;
     }
 
     private static Card? FindCardFromSource(Visual? source, out Bitmap? bitmap)

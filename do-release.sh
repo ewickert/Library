@@ -4,7 +4,7 @@
 #        ./do-release.sh <tag> --skip-build (use existing publish/ output)
 #        ./do-release.sh <tag> --draft      (create as draft)
 #        ./do-release.sh <tag> --prerelease
-set -euo pipefail
+set -eo pipefail
 
 # ── Args ───────────────────────────────────────────────────────────────────────
 if [[ $# -lt 1 ]]; then
@@ -16,6 +16,7 @@ fi
 TAG="$1"; shift
 SKIP_BUILD=false
 GH_FLAGS=()
+ARTIFACTS=()
 
 for arg in "$@"; do
   case "$arg" in
@@ -63,7 +64,8 @@ fi
 # Create and push the tag if it doesn't exist locally/remotely
 cd "$SCRIPT_DIR"
 if git rev-parse "$TAG" &>/dev/null; then
-  echo "==> Tag $TAG already exists locally, reusing."
+  echo "==> Tag $TAG already exists locally, pushing…"
+  git push origin "$TAG" || true
 else
   echo "==> Creating git tag $TAG on current commit…"
   git tag "$TAG"
@@ -73,11 +75,10 @@ fi
 # ── GitHub release ────────────────────────────────────────────────────────────
 echo ""
 echo "==> Creating GitHub release $TAG…"
-gh release create "$TAG" \
-  "${GH_FLAGS[@]}" \
-  --title "$APP_NAME $TAG" \
-  --generate-notes \
-  "${ARTIFACTS[@]}"
+GH_CMD=(gh release create "$TAG" --title "$APP_NAME $TAG" --generate-notes)
+for f in "${GH_FLAGS[@]}"; do GH_CMD+=("$f"); done
+for a in "${ARTIFACTS[@]}"; do GH_CMD+=("$a"); done
+"${GH_CMD[@]}"
 
 echo ""
 echo "Release $TAG published!"

@@ -46,7 +46,7 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 /optimize-
 /out:obj/Debug/net10.0/Library.dll
 /refout:obj/Debug/net10.0/refint/Library.dll
-/target:winexe
+/target:exe
 /warnaserror-
 /utf8output
 /win32manifest:app.manifest
@@ -264,17 +264,14 @@ Views/
  System.Xml.XPath.XDocument.dll
  WindowsBase.dll
 <NUGET>/
- avalonia.controls.colorpicker/11.3.12/lib/net8.0/Avalonia.Controls.ColorPicker.dll
  avalonia.controls.datagrid/11.3.12/lib/net8.0/Avalonia.Controls.DataGrid.dll
  avalonia.desktop/11.3.12/lib/net8.0/Avalonia.Desktop.dll
- avalonia.diagnostics/11.3.12/lib/net8.0/Avalonia.Diagnostics.dll
  avalonia.fonts.inter/11.3.12/lib/net8.0/Avalonia.Fonts.Inter.dll
  avalonia.freedesktop/11.3.12/lib/net8.0/Avalonia.FreeDesktop.dll
  avalonia.native/11.3.12/lib/net8.0/Avalonia.Native.dll
  avalonia.remote.protocol/11.3.12/lib/net8.0/Avalonia.Remote.Protocol.dll
  avalonia.skia/11.3.12/lib/net8.0/Avalonia.Skia.dll
  avalonia.themes.fluent/11.3.12/lib/net8.0/Avalonia.Themes.Fluent.dll
- avalonia.themes.simple/11.3.12/lib/net8.0/Avalonia.Themes.Simple.dll
  avalonia.win32/11.3.12/lib/net8.0/
   Avalonia.Win32.Automation.dll
   Avalonia.Win32.dll
@@ -318,6 +315,9 @@ Views/
 <NUGET>/communitytoolkit.mvvm/8.3.2/analyzers/dotnet/roslyn4.3/cs/
  CommunityToolkit.Mvvm.CodeFixers.dll
  CommunityToolkit.Mvvm.SourceGenerators.dll
+<NUGET>/microsoft.net.illink.tasks/10.0.7/analyzers/dotnet/cs/
+ ILLink.CodeFixProvider.dll
+ ILLink.RoslynAnalyzer.dll
 
 [analyzerConfigFiles]
 <DOTNET>/sdk/10.0.203/Sdks/Microsoft.NET.Sdk/analyzers/build/config/analysislevel_10_default.globalconfig

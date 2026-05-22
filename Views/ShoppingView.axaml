@@ -16,6 +16,16 @@
                 Width="180"
                 ToolTip.Tip="Filter by deck"
                 VerticalAlignment="Center" />
+      <Button Content="⬆ Export for Card Kingdom" Click="OnExportCkClick"
+              ToolTip.Tip="Copy the current list to clipboard in Card Kingdom deck builder format (1 Card Name per line)"
+              VerticalAlignment="Center" />
+      <TextBlock Text="✓ Copied!" IsVisible="{Binding ExportCopied}"
+                 Foreground="LightGreen" FontSize="12" VerticalAlignment="Center" />
+      <Button Content="⬆ Export for TCGPlayer" Click="OnExportTcgClick"
+              ToolTip.Tip="Copy the current list to clipboard in TCGPlayer Mass Entry format (1 Name [SET] # per line)"
+              VerticalAlignment="Center" />
+      <TextBlock Text="✓ Copied!" IsVisible="{Binding TcgExportCopied}"
+                 Foreground="LightGreen" FontSize="12" VerticalAlignment="Center" />
     </StackPanel>
 
     <!-- Items list -->

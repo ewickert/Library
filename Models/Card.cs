@@ -27,4 +27,14 @@ public class Card
     public string? TypeLine { get; set; }
     /// <summary>True when this card was added as a placeholder from the shopping list (Quantity=0).</summary>
     public bool IsPlaceholder { get; set; }
+
+    // ── Market price tracking ─────────────────────────────────────────────────
+    /// <summary>Market price (USD) fetched from Scryfall when the card was first imported.</summary>
+    public decimal? BaselineMarketPrice { get; set; }
+    /// <summary>When the baseline price was recorded.</summary>
+    public DateTime? BaselineMarketPriceFetchedAt { get; set; }
+    /// <summary>Most-recently fetched market price (USD). Updated each time prices are refreshed.</summary>
+    public decimal? CurrentMarketPrice { get; set; }
+    /// <summary>When CurrentMarketPrice was last fetched.</summary>
+    public DateTime? CurrentMarketPriceFetchedAt { get; set; }
 }

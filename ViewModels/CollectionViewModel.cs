@@ -28,11 +28,14 @@ public partial class CollectionViewModel : ObservableObject
     [ObservableProperty] private bool _isLoadingAlternates;
     [ObservableProperty] private bool _isBackfilling;
     [ObservableProperty] private string _backfillStatus = string.Empty;
+    [ObservableProperty] private bool _isRefreshingPrices;
+    [ObservableProperty] private string _priceRefreshStatus = string.Empty;
 
     private CancellationTokenSource? _imageCts;
     private CancellationTokenSource? _slotsCts;
     private CancellationTokenSource? _alternatesCts;
     private CancellationTokenSource? _backfillCts;
+    private CancellationTokenSource? _priceCts;
     private CancellationTokenSource? _searchDebounceCts;
 
     public CollectionViewModel(DatabaseService db, ScryfallService scryfall)
@@ -41,6 +44,15 @@ public partial class CollectionViewModel : ObservableObject
         _scryfall = scryfall;
         RefreshAvailableSets();
         LoadCards();
+        AutoBackfillPricesIfNeeded();
+    }
+
+    /// <summary>Automatically fetches baseline prices in the background for any cards missing them.</summary>
+    private void AutoBackfillPricesIfNeeded()
+    {
+        if (_db.GetCardsNeedingBaselinePrice().Count == 0) return;
+        // Fire-and-forget; RefreshPrices handles the IsRefreshingPrices guard and progress reporting
+        _ = RefreshPricesCommand.ExecuteAsync(null);
     }
 
     /// <summary>Rebuilds the set filter dropdown from all cards in the database.</summary>
@@ -144,6 +156,46 @@ public partial class CollectionViewModel : ObservableObject
             : "Done.";
 
         RefreshAvailableSets();
+        LoadCards();
+    }
+
+    [RelayCommand]
+    private async Task RefreshPrices()
+    {
+        if (IsRefreshingPrices) { _priceCts?.Cancel(); return; }
+
+        // Only fetch cards missing a baseline price first; users can trigger a full refresh via a second
+        // pass, but for the initial import-time use-case we focus on cards missing baseline.
+        var cards = _db.GetCardsNeedingBaselinePrice();
+        if (cards.Count == 0)
+        {
+            // All have baselines — do a full current-price refresh instead
+            cards = _db.GetCardsForPriceRefresh();
+        }
+        if (cards.Count == 0) { PriceRefreshStatus = "No cards to update."; return; }
+
+        bool settingBaseline = _db.GetCardsNeedingBaselinePrice().Count > 0;
+
+        _priceCts = new CancellationTokenSource();
+        IsRefreshingPrices = true;
+        PriceRefreshStatus = $"0 / {cards.Count}";
+
+        var progress = new Progress<(int done, int total)>(p =>
+            PriceRefreshStatus = $"{p.done} / {p.total}");
+
+        await _scryfall.BackfillCardPricesAsync(
+            cards,
+            (card, price) =>
+            {
+                bool needsBaseline = card.BaselineMarketPrice == null;
+                _db.UpdateCardPrices(card.Id, price, needsBaseline);
+            },
+            progress,
+            _priceCts.Token);
+
+        IsRefreshingPrices = false;
+        PriceRefreshStatus = _priceCts.IsCancellationRequested ? "Stopped." : "Done.";
+
         LoadCards();
     }
 

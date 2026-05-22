@@ -25,6 +25,13 @@ public partial class ScryfallResultViewModel : ObservableObject
     public string ManaCost        => Data.ManaCost;
     public string TypeLine        => Data.TypeLine;
 
+    /// <summary>
+    /// App-wide factory for showing the printing picker dialog.
+    /// Set once at startup from MainWindow (Views can set this without polluting ViewModels).
+    /// Receives the original card data; returns the chosen printing or null if cancelled.
+    /// </summary>
+    public static Func<ScryfallCardData, Task<ScryfallCardData?>>? GlobalPickPrintingAsync { get; set; }
+
     public ScryfallResultViewModel(ScryfallCardData data, DatabaseService db, ScryfallService scryfall)
     {
         Data      = data;
@@ -47,7 +54,7 @@ public partial class ScryfallResultViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void ToggleShoppingList()
+    private async Task ToggleShoppingList()
     {
         if (IsOnShoppingList)
         {
@@ -59,7 +66,14 @@ public partial class ScryfallResultViewModel : ObservableObject
         }
         else
         {
-            _db.AddToShoppingList(Data);
+            var chosen = Data;
+            if (GlobalPickPrintingAsync != null)
+            {
+                var picked = await GlobalPickPrintingAsync(Data);
+                if (picked == null) return; // user cancelled
+                chosen = picked;
+            }
+            _db.AddToShoppingList(chosen);
             IsOnShoppingList = true;
         }
     }

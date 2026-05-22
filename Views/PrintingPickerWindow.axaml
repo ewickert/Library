@@ -1,0 +1,86 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:Library.Views"
+        x:Class="Library.Views.PrintingPickerWindow"
+        Title="Choose Printing"
+        Width="680" Height="520"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="12">
+
+    <!-- Header -->
+    <StackPanel Grid.Row="0" Margin="0,0,0,10" Spacing="4">
+      <TextBlock x:Name="CardNameHeader" FontSize="16" FontWeight="SemiBold" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <ProgressBar x:Name="LoadingBar" IsIndeterminate="True" Width="100" Height="6"
+                     VerticalAlignment="Center" IsVisible="True" />
+        <TextBlock x:Name="PrintingCountLabel" Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Main area: list + image -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,180">
+
+      <!-- Printings list -->
+      <ListBox x:Name="PrintingsList"
+               SelectionMode="Single"
+               SelectionChanged="OnSelectionChanged"
+               Margin="0,0,8,0">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="local:PrintingRow">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,2">
+              <!-- Rarity pip -->
+              <Border Grid.Column="0" Width="10" Height="10" CornerRadius="5"
+                      Margin="0,0,8,0" VerticalAlignment="Center"
+                      Background="{Binding RarityColor}" />
+              <!-- Set name + number -->
+              <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding SetName}" FontSize="13" />
+                <TextBlock Opacity="0.6" FontSize="11">
+                  <Run Text="{Binding SetCode}" /><Run Text=" · #" /><Run Text="{Binding CollectorNumber}" />
+                </TextBlock>
+              </StackPanel>
+              <!-- Rarity label -->
+              <TextBlock Grid.Column="2" Text="{Binding Rarity}" FontSize="11" Opacity="0.7"
+                         VerticalAlignment="Center" Margin="8,0" />
+              <!-- Foil badge -->
+              <Border Grid.Column="3" IsVisible="{Binding IsFoil}"
+                      Background="#88FFD700" CornerRadius="3" Padding="4,1"
+                      VerticalAlignment="Center">
+                <TextBlock Text="Foil" FontSize="10" FontWeight="Bold" Foreground="#805500" />
+              </Border>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <!-- Preview panel -->
+      <Border Grid.Column="1" Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+              CornerRadius="8" ClipToBounds="True">
+        <Panel>
+          <ProgressBar x:Name="ImageLoadingBar" IsIndeterminate="True"
+                       Width="60" Height="6" VerticalAlignment="Center" HorizontalAlignment="Center"
+                       IsVisible="False" />
+          <Image x:Name="PreviewImage" Stretch="Uniform" Margin="4" />
+          <TextBlock x:Name="PreviewPlaceholder" Text="Select a printing to preview"
+                     TextWrapping="Wrap" TextAlignment="Center"
+                     Opacity="0.4" FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Center"
+                     Margin="8" />
+        </Panel>
+      </Border>
+    </Grid>
+
+    <!-- Buttons -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+      <TextBlock Grid.Column="0" x:Name="SelectionLabel" Opacity="0.6" FontSize="12"
+                 VerticalAlignment="Center" />
+      <Button Grid.Column="1" x:Name="CancelButton" Content="Cancel"
+              Click="OnCancelClick" Margin="0,0,8,0" Padding="16,6" />
+      <Button Grid.Column="2" x:Name="OkButton" Content="Add to Shopping List"
+              Click="OnOkClick" Padding="16,6"
+              Classes="accent" IsEnabled="False" />
+    </Grid>
+
+  </Grid>
+</Window>

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Library.Models;
 using Library.Services;
 using Library.ViewModels;
 
@@ -119,5 +120,13 @@ public partial class CollectionView : UserControl
         var panel = (StackPanel)dialog.Content!;
         ((Button)panel.Children[1]).Click += (_, _) => dialog.Close();
         await dialog.ShowDialog(owner);
+    }
+
+    private void OnCollectionRowEditEnded(object? sender, DataGridRowEditEndedEventArgs e)
+    {
+        if (e.EditAction != DataGridEditAction.Commit) return;
+        if (e.Row.DataContext is not Card card) return;
+        var win = TopLevel.GetTopLevel(this) as MainWindow;
+        win?.DatabaseService.UpdateCardPurchasePrice(card.Id, card.PurchasePrice, card.PurchasePriceCurrency);
     }
 }

@@ -25,14 +25,45 @@ public partial class DecksViewModel : ObservableObject
     public double TileHeight => Math.Round(210 * _gridZoom);
     partial void OnGridZoomChanged(double v) { OnPropertyChanged(nameof(TileWidth)); OnPropertyChanged(nameof(TileHeight)); }
 
+    // ── Sorted / category view ──────────────────────────────────────────────────
+    [ObservableProperty] private bool _isSortedView;
+    [ObservableProperty] private ObservableCollection<DeckCategoryViewModel> _deckCategories = new();
+    [ObservableProperty] private CardSlotViewModel? _commanderSlot;
+
+    /// <summary>True when the plain flat list is active (sorted off, grid off).</summary>
+    public bool IsListViewMode => !IsGridView && !IsSortedView;
+    /// <summary>True when the plain flat grid is active (sorted off, grid on).</summary>
+    public bool IsGridViewMode => IsGridView && !IsSortedView;
+
+    partial void OnIsGridViewChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsListViewMode));
+        OnPropertyChanged(nameof(IsGridViewMode));
+    }
+
+    partial void OnIsSortedViewChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsListViewMode));
+        OnPropertyChanged(nameof(IsGridViewMode));
+        if (value) RebuildDeckCategories();
+    }
+
     // ── Commander ─────────────────────────────────────────────────────────────
     [ObservableProperty] private DeckCard? _commanderDeckCard;
     [ObservableProperty] private string _commanderColorIdentity = string.Empty;
+
+    partial void OnCommanderDeckCardChanged(DeckCard? value) =>
+        OnPropertyChanged(nameof(ShowCommanderPanel));
     [ObservableProperty] private bool _isLoadingCommanderColorIdentity;
 
     public bool IsCommanderFormat =>
         SelectedDeck?.Format?.Equals("Commander", StringComparison.OrdinalIgnoreCase) == true ||
         SelectedDeck?.Format?.Equals("EDH", StringComparison.OrdinalIgnoreCase) == true;
+
+    public bool ShowCommanderPanel =>
+        SelectedDeck?.Format?.Equals("Commander", StringComparison.OrdinalIgnoreCase) == true ||
+        SelectedDeck?.Format?.Equals("EDH", StringComparison.OrdinalIgnoreCase) == true ||
+        CommanderDeckCard != null;
 
     // ── Collection pane ───────────────────────────────────────────────────────
     [ObservableProperty] private bool _isCollectionPaneOpen = true;
@@ -82,6 +113,9 @@ public partial class DecksViewModel : ObservableObject
     private void ToggleView() => IsGridView = !IsGridView;
 
     [RelayCommand]
+    private void ToggleSortedView() => IsSortedView = !IsSortedView;
+
+    [RelayCommand]
     private void ToggleCollectionPane() => IsCollectionPaneOpen = !IsCollectionPaneOpen;
 
     [RelayCommand]
@@ -105,6 +139,7 @@ public partial class DecksViewModel : ObservableObject
         CommanderColorIdentity = string.Empty;
 
         OnPropertyChanged(nameof(IsCommanderFormat));
+        OnPropertyChanged(nameof(ShowCommanderPanel));
 
         if (value == null) { RefreshCollectionFilter(); return; }
 
@@ -119,10 +154,19 @@ public partial class DecksViewModel : ObservableObject
 
         var slots = full.Cards
             .Where(dc => dc.Card != null)
-            .Select(dc => new CardSlotViewModel(dc.Card!, _scryfall))
+            .Select(dc =>
+            {
+                var slot = new CardSlotViewModel(dc.Card!, _scryfall);
+                slot.RemoveFromDeckCommand = new RelayCommand(() => RemoveCardFromDeck(dc));
+                if (slot.IsCommanderEligible)
+                    slot.SetAsCommanderCommand = new RelayCommand(() => SetAsCommander(dc));
+                return slot;
+            })
             .ToList();
         DeckCardSlots = new ObservableCollection<CardSlotViewModel>(slots);
         _ = LoadSlotsSequentiallyAsync(slots, _slotsCts.Token);
+
+        if (IsSortedView) RebuildDeckCategories();
 
         RefreshCollectionFilter();
     }
@@ -245,12 +289,19 @@ public partial class DecksViewModel : ObservableObject
     /// Called when dragging from the external Scryfall results into the deck pane.
     /// </summary>
     [RelayCommand]
-    private void AddScryfallCardToDeck(ScryfallResultViewModel? result)
+    private async Task AddScryfallCardToDeck(ScryfallResultViewModel? result)
     {
         if (result == null || SelectedDeck == null) return;
-        _db.AddToShoppingList(result.Data);
+        var chosen = result.Data;
+        if (ScryfallResultViewModel.GlobalPickPrintingAsync != null)
+        {
+            var picked = await ScryfallResultViewModel.GlobalPickPrintingAsync(result.Data);
+            if (picked == null) return;
+            chosen = picked;
+        }
+        _db.AddToShoppingList(chosen);
         result.IsOnShoppingList = true;
-        var cardId = _db.GetPlaceholderCardId(result.Data.ScryfallId);
+        var cardId = _db.GetPlaceholderCardId(chosen.ScryfallId);
         if (cardId.HasValue)
         {
             _db.AddCardToDeck(SelectedDeck.Id, cardId.Value, 1, false);
@@ -272,15 +323,70 @@ public partial class DecksViewModel : ObservableObject
         _slotsCts = new CancellationTokenSource();
         var slots = full.Cards
             .Where(dc => dc.Card != null)
-            .Select(dc => new CardSlotViewModel(dc.Card!, _scryfall))
+            .Select(dc =>
+            {
+                var slot = new CardSlotViewModel(dc.Card!, _scryfall);
+                slot.RemoveFromDeckCommand = new RelayCommand(() => RemoveCardFromDeck(dc));
+                if (slot.IsCommanderEligible)
+                    slot.SetAsCommanderCommand = new RelayCommand(() => SetAsCommander(dc));
+                return slot;
+            })
             .ToList();
         DeckCardSlots = new ObservableCollection<CardSlotViewModel>(slots);
         _ = LoadSlotsSequentiallyAsync(slots, _slotsCts.Token);
+
+        if (IsSortedView) RebuildDeckCategories();
+    }
+
+    // ── Sorted category builder ─────────────────────────────────────────────
+    private void RebuildDeckCategories()
+    {
+        // Update commander slot (image binding for the commander panel)
+        CommanderSlot = CommanderDeckCard?.Card != null
+            ? DeckCardSlots.FirstOrDefault(s => s.Card.Id == CommanderDeckCard.Card.Id)
+            : null;
+
+        var nonCommander = DeckCards.Where(dc => !dc.IsCommander).ToList();
+        var assigned     = new HashSet<int>();
+        var slotById     = DeckCardSlots.Where(s => s.Card != null)
+                              .DistinctBy(s => s.Card.Id)
+                              .ToDictionary(s => s.Card.Id);
+
+        static bool HasType(DeckCard dc, string type) =>
+            dc.Card?.TypeLine?.Contains(type, StringComparison.OrdinalIgnoreCase) == true;
+
+        var categories = new (string Icon, string Name, Func<DeckCard, bool> Match)[]
+        {
+            ("⚔",  "Creatures",     dc => HasType(dc, "Creature")),
+            ("⭐", "Planeswalkers", dc => HasType(dc, "Planeswalker")),
+            ("⚡", "Instants",      dc => HasType(dc, "Instant")),
+            ("◎",  "Sorceries",     dc => HasType(dc, "Sorcery")),
+            ("✦",  "Enchantments",  dc => HasType(dc, "Enchantment") && !HasType(dc, "Creature") && !HasType(dc, "Artifact")),
+            ("⚙",  "Artifacts",     dc => HasType(dc, "Artifact")    && !HasType(dc, "Creature")),
+            ("⛰",  "Lands",         dc => HasType(dc, "Land")),
+        };
+
+        var groups = new List<DeckCategoryViewModel>();
+        foreach (var (icon, name, match) in categories)
+        {
+            var cards = nonCommander.Where(dc => match(dc) && !assigned.Contains(dc.Id)).ToList();
+            foreach (var dc in cards) assigned.Add(dc.Id);
+            if (cards.Count > 0)
+                groups.Add(new DeckCategoryViewModel(icon, name, cards, slotById,
+                    RemoveCardFromDeck, dc => SetAsCommander(dc)));
+        }
+
+        var other = nonCommander.Where(dc => !assigned.Contains(dc.Id)).ToList();
+        if (other.Count > 0)
+            groups.Add(new DeckCategoryViewModel("•", "Other", other, slotById,
+                RemoveCardFromDeck, dc => SetAsCommander(dc)));
+
+        DeckCategories = new ObservableCollection<DeckCategoryViewModel>(groups);
     }
 
     // ── Commander management ──────────────────────────────────────────────────
     [RelayCommand]
-    private async Task SetAsCommander(DeckCard? deckCard)
+    private void SetAsCommander(DeckCard? deckCard)
     {
         if (deckCard == null || SelectedDeck == null) return;
 
@@ -289,27 +395,41 @@ public partial class DecksViewModel : ObservableObject
         // Reload local state
         var full = _db.GetDeckWithCards(SelectedDeck.Id);
         if (full == null) return;
+        var foundCommander = full.Cards.FirstOrDefault(dc => dc.IsCommander);
         DeckCards = new ObservableCollection<DeckCard>(full.Cards);
-        CommanderDeckCard = full.Cards.FirstOrDefault(dc => dc.IsCommander);
+        CommanderDeckCard = foundCommander;
 
-        // Fetch color identity from Scryfall
+        // Refresh the commander image slot
+        CommanderSlot = CommanderDeckCard?.Card != null
+            ? DeckCardSlots.FirstOrDefault(s => s.Card.Id == CommanderDeckCard.Card.Id)
+            : null;
+
+        // Rebuild categories and switch to sorted view so the commander column appears
+        RebuildDeckCategories();
+        IsSortedView = true;
+
+        // Fetch color identity from Scryfall in the background (does not block the command)
+        _ = FetchAndSaveCommanderColorIdentityAsync(deckCard.Card, SelectedDeck);
+    }
+
+    private async Task FetchAndSaveCommanderColorIdentityAsync(Card? card, Deck deck)
+    {
         IsLoadingCommanderColorIdentity = true;
         try
         {
             string? ci = null;
-            var card = deckCard.Card;
             if (card != null)
             {
-                // Try stored color identity first
                 if (!string.IsNullOrWhiteSpace(card.ColorIdentity))
                     ci = card.ColorIdentity;
                 else if (!string.IsNullOrWhiteSpace(card.ScryfallId))
                     ci = await _scryfall.GetColorIdentityAsync(card.ScryfallId);
             }
             CommanderColorIdentity = ci ?? string.Empty;
-            SelectedDeck.CommanderColorIdentity = CommanderColorIdentity;
-            _db.UpdateDeck(SelectedDeck);
+            deck.CommanderColorIdentity = CommanderColorIdentity;
+            _db.UpdateDeck(deck);
         }
+        catch { /* color identity is cosmetic — don't crash if Scryfall is unavailable */ }
         finally { IsLoadingCommanderColorIdentity = false; }
     }
 

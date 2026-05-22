@@ -56,6 +56,38 @@ public class ScryfallService
         return await DownloadAndCacheAsync(imageUrl, cachePath, ct);
     }
 
+    public async Task<Bitmap?> GetCardArtCropAsync(string scryfallId, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(scryfallId)) return null;
+
+        var cachePath = Path.Combine(_cacheDir, $"{scryfallId}_art.jpg");
+        if (File.Exists(cachePath))
+        {
+            try { return new Bitmap(cachePath); } catch { File.Delete(cachePath); }
+        }
+
+        try
+        {
+            var json = await ApiGetAsync($"cards/{scryfallId}", ct);
+            if (json == null) return null;
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            string? artUrl = null;
+            if (root.TryGetProperty("image_uris", out var uris) && uris.TryGetProperty("art_crop", out var art))
+                artUrl = art.GetString();
+            else if (root.TryGetProperty("card_faces", out var faces) && faces.GetArrayLength() > 0)
+            {
+                var face = faces[0];
+                if (face.TryGetProperty("image_uris", out var faceUris) && faceUris.TryGetProperty("art_crop", out var faceArt))
+                    artUrl = faceArt.GetString();
+            }
+            if (artUrl == null) return null;
+            return await DownloadAndCacheAsync(artUrl, cachePath, ct);
+        }
+        catch { return null; }
+    }
+
     public async Task<Bitmap?> GetCardImageByCollectorAsync(string setCode, string collectorNumber, bool foil, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(setCode) || string.IsNullOrWhiteSpace(collectorNumber)) return null;
@@ -374,6 +406,83 @@ public class ScryfallService
             }
 
             onResult(card, ci, mc, tl);
+            progress?.Report((++done, total));
+        }
+    }
+
+    /// <summary>
+    /// Returns the current USD market price for a card from Scryfall.
+    /// Uses <c>prices.usd_foil</c> when <paramref name="foil"/> is true, otherwise <c>prices.usd</c>.
+    /// Returns null when the price is not available.
+    /// </summary>
+    public async Task<decimal?> GetCardMarketPriceAsync(string scryfallId, bool foil, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(scryfallId)) return null;
+        try
+        {
+            var json = await ApiGetAsync($"cards/{scryfallId}", ct);
+            if (json == null) return null;
+            using var doc = JsonDocument.Parse(json);
+            return ExtractPrice(doc.RootElement, foil);
+        }
+        catch { return null; }
+    }
+
+    private static decimal? ExtractPrice(JsonElement root, bool foil)
+    {
+        if (!root.TryGetProperty("prices", out var prices)) return null;
+        var key = foil ? "usd_foil" : "usd";
+        if (prices.TryGetProperty(key, out var priceEl))
+        {
+            var s = priceEl.GetString();
+            if (decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var value))
+                return value;
+        }
+        // Fall back to the other variant if the requested one is null
+        var fallback = foil ? "usd" : "usd_foil";
+        if (prices.TryGetProperty(fallback, out var fallbackEl))
+        {
+            var s = fallbackEl.GetString();
+            if (decimal.TryParse(s, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var value))
+                return value;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Fetches and stores market prices for a list of cards.
+    /// <paramref name="onResult"/> is called with (card, price). When <paramref name="baselineOnly"/>
+    /// is true only cards without a baseline are included (caller should pre-filter).
+    /// </summary>
+    public async Task BackfillCardPricesAsync(
+        IReadOnlyList<Library.Models.Card> cards,
+        Action<Library.Models.Card, decimal> onResult,
+        IProgress<(int done, int total)>? progress = null,
+        CancellationToken ct = default)
+    {
+        int total = cards.Count;
+        int done  = 0;
+
+        foreach (var card in cards)
+        {
+            if (ct.IsCancellationRequested) break;
+            if (string.IsNullOrEmpty(card.ScryfallId)) { progress?.Report((++done, total)); continue; }
+
+            try
+            {
+                var json = await ApiGetAsync($"cards/{card.ScryfallId}", ct);
+                if (json != null)
+                {
+                    using var doc = JsonDocument.Parse(json);
+                    var price = ExtractPrice(doc.RootElement, card.Foil);
+                    if (price.HasValue) onResult(card, price.Value);
+                }
+            }
+            catch (OperationCanceledException) { break; }
+            catch { /* skip on network error */ }
+
             progress?.Report((++done, total));
         }
     }

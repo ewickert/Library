@@ -14,6 +14,8 @@ public partial class ShoppingViewModel : ObservableObject
 
     [ObservableProperty] private ObservableCollection<ShoppingItemViewModel> _items = new();
     [ObservableProperty] private string _searchText = string.Empty;
+    [ObservableProperty] private bool _exportCopied;
+    [ObservableProperty] private bool _tcgExportCopied;
 
     /// Deck names for the filter dropdown. First entry is always "(All decks)".
     [ObservableProperty] private ObservableCollection<string> _deckFilterOptions = new();
@@ -90,6 +92,40 @@ public partial class ShoppingViewModel : ObservableObject
                 i.SetName.Contains(q, StringComparison.OrdinalIgnoreCase));
 
         Items = new ObservableCollection<ShoppingItemViewModel>(filtered);
+    }
+
+    /// <summary>
+    /// Builds a Card Kingdom-compatible deck list from the currently visible (filtered) items.
+    /// Format: "1 Card Name" per line, one line per unique card name.
+    /// </summary>
+    public string BuildCardKingdomExport()
+    {
+        // Use visible filtered list; group by name so duplicate wants collapse to a quantity
+        var lines = Items
+            .GroupBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g.Key)
+            .Select(g => $"{g.Count()} {g.Key}");
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// Builds a TCGPlayer Mass Entry-compatible list from the currently visible (filtered) items.
+    /// Format: "1 Lightning Bolt [M10] 146" — quantity, name, [SET], collector number.
+    /// </summary>
+    public string BuildTcgPlayerExport()
+    {
+        var lines = Items
+            .GroupBy(i => $"{i.Name}||{i.SetCode.ToUpperInvariant()}||{i.CollectorNumber}")
+            .OrderBy(g => g.First().Name)
+            .Select(g =>
+            {
+                var item = g.First();
+                var qty = g.Count();
+                var setPart = !string.IsNullOrWhiteSpace(item.SetCode) ? $" [{item.SetCode.ToUpperInvariant()}]" : string.Empty;
+                var numPart = !string.IsNullOrWhiteSpace(item.CollectorNumber) ? $" {item.CollectorNumber}" : string.Empty;
+                return $"{qty} {item.Name}{setPart}{numPart}";
+            });
+        return string.Join(Environment.NewLine, lines);
     }
 }
 

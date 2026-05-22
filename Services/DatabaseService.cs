@@ -101,6 +101,10 @@ public class DatabaseService
         RunMigration(conn, "ALTER TABLE Decks ADD COLUMN CommanderColorIdentity TEXT");
         RunMigration(conn, "ALTER TABLE DeckCards ADD COLUMN IsCommander INTEGER NOT NULL DEFAULT 0");
         RunMigration(conn, "ALTER TABLE Cards ADD COLUMN IsPlaceholder INTEGER NOT NULL DEFAULT 0");
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN BaselineMarketPrice REAL");
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN BaselineMarketPriceFetchedAt TEXT");
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN CurrentMarketPrice REAL");
+        RunMigration(conn, "ALTER TABLE Cards ADD COLUMN CurrentMarketPriceFetchedAt TEXT");
     }
 
     private static void RunMigration(SqliteConnection conn, string sql)
@@ -177,6 +181,19 @@ public class DatabaseService
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>Updates only the purchase price and currency for an existing card.</summary>
+    public void UpdateCardPurchasePrice(int id, decimal? price, string? currency)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE Cards SET PurchasePrice=$price, PurchasePriceCurrency=$currency WHERE Id=$id";
+        cmd.Parameters.AddWithValue("$price",    (object?)price    ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$currency", (object?)currency ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$id",       id);
+        cmd.ExecuteNonQuery();
+    }
+
     /// <summary>Updates only the three Scryfall-derived metadata columns for an existing card.</summary>
     public void UpdateCardMetadata(int id, string? colorIdentity, string? manaCost, string? typeLine)
     {
@@ -190,6 +207,76 @@ public class DatabaseService
         cmd.Parameters.AddWithValue("$mc",  (object?)manaCost      ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$tl",  (object?)typeLine      ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$id",  id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Returns all cards missing a baseline price that have a Scryfall ID (excluding placeholders).</summary>
+    public List<Card> GetCardsNeedingBaselinePrice()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT * FROM Cards
+            WHERE (IsPlaceholder = 0 OR IsPlaceholder IS NULL)
+              AND ScryfallId IS NOT NULL
+              AND BaselineMarketPrice IS NULL
+            ORDER BY Name
+            """;
+        using var reader = cmd.ExecuteReader();
+        var cards = new List<Card>();
+        while (reader.Read()) cards.Add(ReadCard(reader));
+        return cards;
+    }
+
+    /// <summary>Returns all cards with a Scryfall ID that need their current price refreshed (non-placeholder).</summary>
+    public List<Card> GetCardsForPriceRefresh()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT * FROM Cards
+            WHERE (IsPlaceholder = 0 OR IsPlaceholder IS NULL)
+              AND ScryfallId IS NOT NULL
+            ORDER BY Name
+            """;
+        using var reader = cmd.ExecuteReader();
+        var cards = new List<Card>();
+        while (reader.Read()) cards.Add(ReadCard(reader));
+        return cards;
+    }
+
+    /// <summary>Sets the baseline price (once ever) and always updates the current price.</summary>
+    public void UpdateCardPrices(int id, decimal price, bool setBaseline)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        var now = DateTime.UtcNow.ToString("o");
+        if (setBaseline)
+        {
+            cmd.CommandText = """
+                UPDATE Cards SET
+                    BaselineMarketPrice = $price,
+                    BaselineMarketPriceFetchedAt = $now,
+                    CurrentMarketPrice = $price,
+                    CurrentMarketPriceFetchedAt = $now
+                WHERE Id = $id
+                """;
+        }
+        else
+        {
+            cmd.CommandText = """
+                UPDATE Cards SET
+                    CurrentMarketPrice = $price,
+                    CurrentMarketPriceFetchedAt = $now
+                WHERE Id = $id
+                """;
+        }
+        cmd.Parameters.AddWithValue("$price", price);
+        cmd.Parameters.AddWithValue("$now",   now);
+        cmd.Parameters.AddWithValue("$id",    id);
         cmd.ExecuteNonQuery();
     }
 
@@ -265,7 +352,11 @@ public class DatabaseService
         ColorIdentity = r.IsDBNull(r.GetOrdinal("ColorIdentity")) ? null : r.GetString(r.GetOrdinal("ColorIdentity")),
         ManaCost = r.IsDBNull(r.GetOrdinal("ManaCost")) ? null : r.GetString(r.GetOrdinal("ManaCost")),
         TypeLine = r.IsDBNull(r.GetOrdinal("TypeLine")) ? null : r.GetString(r.GetOrdinal("TypeLine")),
-        IsPlaceholder = r.IsDBNull(r.GetOrdinal("IsPlaceholder")) ? false : r.GetInt32(r.GetOrdinal("IsPlaceholder")) == 1
+        IsPlaceholder = r.IsDBNull(r.GetOrdinal("IsPlaceholder")) ? false : r.GetInt32(r.GetOrdinal("IsPlaceholder")) == 1,
+        BaselineMarketPrice = r.IsDBNull(r.GetOrdinal("BaselineMarketPrice")) ? null : r.GetDecimal(r.GetOrdinal("BaselineMarketPrice")),
+        BaselineMarketPriceFetchedAt = r.IsDBNull(r.GetOrdinal("BaselineMarketPriceFetchedAt")) ? null : DateTime.Parse(r.GetString(r.GetOrdinal("BaselineMarketPriceFetchedAt"))),
+        CurrentMarketPrice = r.IsDBNull(r.GetOrdinal("CurrentMarketPrice")) ? null : r.GetDecimal(r.GetOrdinal("CurrentMarketPrice")),
+        CurrentMarketPriceFetchedAt = r.IsDBNull(r.GetOrdinal("CurrentMarketPriceFetchedAt")) ? null : DateTime.Parse(r.GetString(r.GetOrdinal("CurrentMarketPriceFetchedAt")))
     };
 
     // --- Shopping List ---
@@ -455,10 +546,26 @@ public class DatabaseService
         using var conn = CreateConnection();
         conn.Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM Decks ORDER BY Name";
+        cmd.CommandText = """
+            SELECT d.*, c.Name AS CommanderName, c.ScryfallId AS CommanderScryfallId
+            FROM Decks d
+            LEFT JOIN DeckCards dc ON dc.DeckId = d.Id AND dc.IsCommander = 1
+            LEFT JOIN Cards c ON c.Id = dc.CardId
+            ORDER BY d.Name
+            """;
         using var reader = cmd.ExecuteReader();
         var decks = new List<Deck>();
-        while (reader.Read()) decks.Add(ReadDeck(reader));
+        while (reader.Read())
+        {
+            var deck = ReadDeck(reader);
+            var nameOrdinal = reader.GetOrdinal("CommanderName");
+            if (!reader.IsDBNull(nameOrdinal))
+                deck.CommanderName = reader.GetString(nameOrdinal);
+            var sidOrdinal = reader.GetOrdinal("CommanderScryfallId");
+            if (!reader.IsDBNull(sidOrdinal))
+                deck.CommanderScryfallId = reader.GetString(sidOrdinal);
+            decks.Add(deck);
+        }
         return decks;
     }
 
@@ -497,7 +604,8 @@ public class DatabaseService
         using (var cmd = conn.CreateCommand())
         {
             cmd.CommandText = """
-                SELECT dc.*, c.* FROM DeckCards dc
+                SELECT dc.Id AS DeckCardId, dc.DeckId, dc.CardId, dc.Quantity, dc.IsSideboard, dc.IsCommander, c.*
+                FROM DeckCards dc
                 JOIN Cards c ON c.Id = dc.CardId
                 WHERE dc.DeckId = $deckId
                 """;
@@ -507,7 +615,7 @@ public class DatabaseService
             {
                 deck.Cards.Add(new DeckCard
                 {
-                    Id = r.GetInt32(r.GetOrdinal("Id")),
+                    Id = r.GetInt32(r.GetOrdinal("DeckCardId")),
                     DeckId = deckId,
                     CardId = r.GetInt32(r.GetOrdinal("CardId")),
                     Quantity = r.GetInt32(r.GetOrdinal("Quantity")),

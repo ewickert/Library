@@ -143,6 +143,27 @@ public class DatabaseService
         return reader.Read() ? ReadCard(reader) : null;
     }
 
+    /// <summary>Returns the first owned non-placeholder card with this Scryfall ID, if any.</summary>
+    public Card? GetOwnedCardByScryfallId(string scryfallId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT * FROM Cards
+            WHERE ScryfallId = $sid
+              AND Quantity > 0
+              AND (IsPlaceholder = 0 OR IsPlaceholder IS NULL)
+            LIMIT 1
+            """;
+        cmd.Parameters.AddWithValue("$sid", scryfallId);
+        using var reader = cmd.ExecuteReader();
+        return reader.Read() ? ReadCard(reader) : null;
+    }
+
+    public bool IsInCollectionByScryfallId(string scryfallId) =>
+        GetOwnedCardByScryfallId(scryfallId) != null;
+
     public int AddCard(Card card)
     {
         using var conn = CreateConnection();

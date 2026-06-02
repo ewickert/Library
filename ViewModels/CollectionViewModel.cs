@@ -20,7 +20,9 @@ public partial class CollectionViewModel : ObservableObject
     [ObservableProperty] private double _gridZoom = 1.0;
     public double TileWidth  => Math.Round(160 * _gridZoom);
     public double TileHeight => Math.Round(224 * _gridZoom);
-    partial void OnGridZoomChanged(double v) { OnPropertyChanged(nameof(TileWidth)); OnPropertyChanged(nameof(TileHeight)); }
+    partial void OnGridZoomChanged(double v) { OnPropertyChanged(nameof(TileWidth)); OnPropertyChanged(nameof(TileHeight)); Services.PreferencesService.Instance.CollectionGridZoom = v; }
+
+    partial void OnIsGridViewChanged(bool value) => Services.PreferencesService.Instance.CollectionIsGridView = value;
     [ObservableProperty] private ObservableCollection<CardSlotViewModel> _cardSlots = new();
     [ObservableProperty] private ObservableCollection<SetItem> _availableSets = new();
     [ObservableProperty] private SetItem? _selectedSetFilter;
@@ -42,6 +44,11 @@ public partial class CollectionViewModel : ObservableObject
     {
         _db = db;
         _scryfall = scryfall;
+
+        var prefs = Services.PreferencesService.Instance;
+        _isGridView = prefs.CollectionIsGridView;
+        _gridZoom   = prefs.CollectionGridZoom;
+
         RefreshAvailableSets();
         LoadCards();
         AutoBackfillPricesIfNeeded();
@@ -366,7 +373,16 @@ public partial class CollectionViewModel : ObservableObject
 
             var vms = results
                 .Where(r => !ownedIds.Contains(r.ScryfallId))
-                .Select(r => new ScryfallResultViewModel(r, _db, _scryfall))
+                .Select(r =>
+                {
+                    var vm = new ScryfallResultViewModel(r, _db, _scryfall);
+                    vm.AddedToCollection = () =>
+                    {
+                        LoadCards();
+                        _ = RunExternalSearchAsync(SearchText);
+                    };
+                    return vm;
+                })
                 .ToList();
 
             ExternalResults = new ObservableCollection<ScryfallResultViewModel>(vms);

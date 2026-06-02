@@ -6,21 +6,56 @@
         x:DataType="vm:MainWindowViewModel"
         Title="Magic: The Gathering Library"
         Width="1200" Height="800"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource ThemeBackgroundBrush}">
 
-  <TabControl SelectedIndex="{Binding SelectedTabIndex}">
-    <TabItem Header="Collection">
-      <views:CollectionView DataContext="{Binding Collection}" />
-    </TabItem>
-    <TabItem Header="Decks">
-      <views:DecksView DataContext="{Binding Decks}" />
-    </TabItem>
-    <TabItem Header="Binders">
-      <views:BindersView DataContext="{Binding Binders}" />
-    </TabItem>
-    <TabItem Header="🛒 Shopping">
-      <views:ShoppingView DataContext="{Binding Shopping}" />
-    </TabItem>
-  </TabControl>
+  <!-- ── macOS native menu bar ──────────────────────────────────── -->
+  <NativeMenu.Menu>
+    <NativeMenu>
+      <NativeMenuItem Header="File">
+        <NativeMenuItem.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Import CSV…"
+                            Command="{Binding ImportCsvCommand}"
+                            Gesture="Cmd+O" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Fill Missing Metadata"
+                            Command="{Binding BackfillMetadataCommand}" />
+            <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Quit MTG Library"
+                            Command="{Binding QuitCommand}"
+                            Gesture="Cmd+Q" />
+          </NativeMenu>
+        </NativeMenuItem.Menu>
+      </NativeMenuItem>
+    </NativeMenu>
+  </NativeMenu.Menu>
+
+  <DockPanel>
+
+    <!-- ── Windows / Linux menu bar (hidden on macOS where NativeMenu takes over) ── -->
+    <Menu DockPanel.Dock="Top"
+          IsVisible="{OnPlatform Default=True, macOS=False}"
+          Background="{DynamicResource ThemeSurfaceHighBrush}"
+          BorderBrush="{DynamicResource ThemeBorderBrush}"
+          BorderThickness="0,0,0,1"
+          Padding="4,0">
+      <MenuItem Header="_File">
+        <MenuItem Header="Import CSV…"
+                  Command="{Binding ImportCsvCommand}"
+                  InputGesture="Ctrl+O" />
+        <Separator />
+        <MenuItem Header="Fill Missing Metadata"
+                  Command="{Binding BackfillMetadataCommand}" />
+        <Separator />
+        <MenuItem Header="E_xit"
+                  Command="{Binding QuitCommand}"
+                  InputGesture="Alt+F4" />
+      </MenuItem>
+    </Menu>
+
+    <views:MainView />
+
+  </DockPanel>
 
 </Window>

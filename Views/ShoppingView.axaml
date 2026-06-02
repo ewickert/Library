@@ -8,25 +8,30 @@
   <Grid RowDefinitions="Auto,*">
 
     <!-- Toolbar -->
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="8,8,8,4">
+        <ScrollViewer Grid.Row="0"
+          HorizontalScrollBarVisibility="Auto"
+          VerticalScrollBarVisibility="Disabled"
+          Margin="8,8,8,4">
+          <StackPanel Orientation="Horizontal" Spacing="8">
       <TextBlock Text="🛒 Shopping List" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
-      <TextBox Text="{Binding SearchText}" Watermark="Filter…" Width="200" />
+      <TextBox Text="{Binding SearchText}" Watermark="Filter…" Width="180" />
       <ComboBox ItemsSource="{Binding DeckFilterOptions}"
-                SelectedItem="{Binding SelectedDeckFilter}"
-                Width="180"
-                ToolTip.Tip="Filter by deck"
-                VerticalAlignment="Center" />
+          SelectedItem="{Binding SelectedDeckFilter}"
+          Width="170"
+          ToolTip.Tip="Filter by deck"
+          VerticalAlignment="Center" />
       <Button Content="⬆ Export for Card Kingdom" Click="OnExportCkClick"
-              ToolTip.Tip="Copy the current list to clipboard in Card Kingdom deck builder format (1 Card Name per line)"
-              VerticalAlignment="Center" />
+        ToolTip.Tip="Copy the current list to clipboard in Card Kingdom deck builder format (1 Card Name per line)"
+        VerticalAlignment="Center" />
       <TextBlock Text="✓ Copied!" IsVisible="{Binding ExportCopied}"
-                 Foreground="LightGreen" FontSize="12" VerticalAlignment="Center" />
+           Foreground="LightGreen" FontSize="12" VerticalAlignment="Center" />
       <Button Content="⬆ Export for TCGPlayer" Click="OnExportTcgClick"
-              ToolTip.Tip="Copy the current list to clipboard in TCGPlayer Mass Entry format (1 Name [SET] # per line)"
-              VerticalAlignment="Center" />
+        ToolTip.Tip="Copy the current list to clipboard in TCGPlayer Mass Entry format (1 Name [SET] # per line)"
+        VerticalAlignment="Center" />
       <TextBlock Text="✓ Copied!" IsVisible="{Binding TcgExportCopied}"
-                 Foreground="LightGreen" FontSize="12" VerticalAlignment="Center" />
-    </StackPanel>
+           Foreground="LightGreen" FontSize="12" VerticalAlignment="Center" />
+          </StackPanel>
+        </ScrollViewer>
 
     <!-- Items list -->
     <ScrollViewer Grid.Row="1">

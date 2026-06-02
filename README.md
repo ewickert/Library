@@ -146,6 +146,44 @@ cd Library
 dotnet run
 ```
 
+### Run by platform
+
+The app now uses a shared Avalonia UI across desktop, Android, and iOS targets.
+
+```bash
+# Desktop (macOS / Windows / Linux)
+dotnet run -f net10.0
+
+# Android (requires Android workload + emulator/device)
+dotnet run -f net10.0-android
+
+# iOS (requires iOS workload + simulator/device on macOS)
+dotnet run -f net10.0-ios
+```
+
+### Debug scripts for simulators/emulators
+
+Use these scripts to boot a matching simulator/emulator and start a debug run:
+
+```bash
+./scripts/debug-android-phone.sh
+./scripts/debug-android-tablet.sh
+./scripts/debug-ios-iphone.sh
+./scripts/debug-ios-ipad.sh
+```
+
+Optional overrides (if you want a specific named simulator/AVD):
+
+```bash
+ANDROID_PHONE_AVD="Pixel_8_API_35" ./scripts/debug-android-phone.sh
+ANDROID_TABLET_AVD="Pixel_Tablet_API_35" ./scripts/debug-android-tablet.sh
+IOS_IPHONE_SIM="iPhone 16 Pro" ./scripts/debug-ios-iphone.sh
+IOS_IPAD_SIM="iPad Pro (13-inch)" ./scripts/debug-ios-ipad.sh
+
+# Disable iOS auto-fallback to any simulator when no iPhone/iPad match exists
+IOS_FALLBACK_ANY_SIM=0 ./scripts/debug-ios-ipad.sh
+```
+
 ### Publishing releases
 
 ```bash

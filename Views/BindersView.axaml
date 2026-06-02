@@ -5,7 +5,11 @@
              x:Class="Library.Views.BindersView"
              x:DataType="vm:BindersViewModel">
 
-  <Grid ColumnDefinitions="220,*">
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="0.26*" MinWidth="150" MaxWidth="280" />
+      <ColumnDefinition Width="*" MinWidth="260" />
+    </Grid.ColumnDefinitions>
 
     <!-- Binder list sidebar -->
     <DockPanel Grid.Column="0" Margin="8,8,4,8">
@@ -14,7 +18,7 @@
         <Button Content="+ New Binder" Command="{Binding StartCreateBinderCommand}" HorizontalAlignment="Stretch" />
 
         <Border IsVisible="{Binding IsCreatingBinder}"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Background="{DynamicResource ThemeSurfaceBrush}"
                 CornerRadius="6" Padding="8">
           <StackPanel Spacing="6">
             <TextBox Text="{Binding NewBinderName}" Watermark="Binder name *" />
@@ -43,21 +47,26 @@
     <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="4,8,8,8">
 
       <!-- Header toolbar -->
-      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,8"
-                  IsVisible="{Binding SelectedBinder, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <TextBlock Text="{Binding SelectedBinder.Name}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
-        <TextBox Text="{Binding SearchText}" Watermark="Search cards…" Width="200" />
-        <Button Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"
-                Padding="6,2" FontWeight="Bold" VerticalAlignment="Center" />
-        <Button Command="{Binding ToggleViewCommand}" VerticalAlignment="Center" Padding="8,4">
-          <StackPanel Orientation="Horizontal" Spacing="4">
-            <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="13" />
-            <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="13" />
-          </StackPanel>
-        </Button>
-        <Button Content="Delete Binder" Command="{Binding DeleteBinderCommand}"
-                Background="#CC3300" Foreground="White" VerticalAlignment="Center" />
-      </StackPanel>
+      <ScrollViewer Grid.Row="0"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Disabled"
+                    Margin="0,0,0,8"
+                    IsVisible="{Binding SelectedBinder, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding SelectedBinder.Name}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+          <TextBox Text="{Binding SearchText}" Watermark="Search cards…" Width="180" />
+          <Button Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"
+                  Padding="6,2" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Command="{Binding ToggleViewCommand}" VerticalAlignment="Center" Padding="8,4">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="13" />
+              <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="13" />
+            </StackPanel>
+          </Button>
+          <Button Content="Delete Binder" Command="{Binding DeleteBinderCommand}"
+                  Background="#CC3300" Foreground="White" VerticalAlignment="Center" />
+        </StackPanel>
+      </ScrollViewer>
 
       <!-- Grid view -->
       <ScrollViewer x:Name="GridScrollViewer" Grid.Row="1"
@@ -76,7 +85,7 @@
                       Height="{Binding $parent[UserControl].((vm:BindersViewModel)DataContext).TileHeight}"
                       Margin="6" CornerRadius="8"
                       ClipToBounds="True" ToolTip.ShowDelay="200"
-                      Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                      Background="{DynamicResource ThemeSurfaceVariantBrush}">
                 <ToolTip.Tip>
                   <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
                     <Panel>

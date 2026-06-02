@@ -1,0 +1,171 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Styles.Resources>
+    <!--
+      ── Liquid Glass: macOS-style translucent panels over a deep space canvas ──
+      Panels are semi-transparent so the dark background bleeds through.
+      Borders carry a specular highlight (bright top edge → dim base).
+      Box shadows add depth / elevation layering.
+    -->
+
+    <!-- Deep background — the "world" behind all glass layers -->
+    <SolidColorBrush x:Key="ThemeBackgroundBrush">#07090F</SolidColorBrush>
+
+    <!-- Glass panels — semi-transparent so bg shows through -->
+    <SolidColorBrush x:Key="ThemeSurfaceBrush"         Color="#880D1628" />  <!-- ~53% opaque -->
+    <SolidColorBrush x:Key="ThemeSurfaceVariantBrush"  Color="#66091220" />  <!-- ~40% opaque -->
+    <SolidColorBrush x:Key="ThemeSurfaceHighBrush"     Color="#550A1018" />  <!-- ~33% opaque -->
+
+    <!-- Accent: electric sky-blue -->
+    <SolidColorBrush x:Key="ThemeAccentBrush">#38BDF8</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeAccentForegroundBrush">#010A12</SolidColorBrush>
+
+    <!-- Glass edge — bright specular refraction line -->
+    <SolidColorBrush x:Key="ThemeBorderBrush"          Color="#5080B8D8" />
+    <SolidColorBrush x:Key="ThemeSpecularBrush"        Color="#4490C8E8" />  <!-- top highlight -->
+
+    <!-- Typography -->
+    <SolidColorBrush x:Key="ThemeTextPrimaryBrush">#E8F0F8</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeTextSecondaryBrush">#607888</SolidColorBrush>
+
+    <!-- Input fields — more transparent than panels -->
+    <SolidColorBrush x:Key="ThemeInputBrush"           Color="#44050812" />
+
+    <!-- Corner radii -->
+    <CornerRadius x:Key="ThemeControlCornerRadius">10</CornerRadius>
+    <CornerRadius x:Key="ThemePanelCornerRadius">14</CornerRadius>
+
+    <!-- ── Fluent system color overrides ──────────────────────────── -->
+    <Color x:Key="SystemAccentColor">#38BDF8</Color>
+    <Color x:Key="SystemAccentColorDark1">#1EA8E0</Color>
+    <Color x:Key="SystemAccentColorDark2">#0A8EC8</Color>
+    <Color x:Key="SystemAccentColorDark3">#0070A0</Color>
+    <Color x:Key="SystemAccentColorLight1">#5CCEF8</Color>
+    <Color x:Key="SystemAccentColorLight2">#80DEFA</Color>
+    <Color x:Key="SystemAccentColorLight3">#A0EEFF</Color>
+
+    <!-- Chrome colors (Fluent internal tokens) -->
+    <Color x:Key="ThemeChromeMediumLowColor">#880D1628</Color>
+    <Color x:Key="ThemeChromeMediumColor">#07090F</Color>
+    <Color x:Key="ThemeChromeHighColor">#AA1A2840</Color>
+    <Color x:Key="ThemeChromeAltLowColor">#E8F0F8</Color>
+
+    <!-- Base (text + fill) -->
+    <Color x:Key="ThemeBaseHighColor">#E8F0F8</Color>
+    <Color x:Key="ThemeBaseMediumHighColor">#90A8C0</Color>
+    <Color x:Key="ThemeBaseMediumColor">#3A5870</Color>
+    <Color x:Key="ThemeBaseMediumLowColor">#1E2E3E</Color>
+    <Color x:Key="ThemeBaseLowColor">#66091220</Color>
+
+    <!-- List row states -->
+    <Color x:Key="ThemeListLowColor">#1038BDF8</Color>
+    <Color x:Key="ThemeListMediumColor">#2838BDF8</Color>
+    <Color x:Key="ThemeListAccentLowColor">#2838BDF8</Color>
+    <Color x:Key="ThemeListAccentMediumColor">#4438BDF8</Color>
+    <Color x:Key="ThemeListAccentHighColor">#6038BDF8</Color>
+
+    <!-- ── Button — glassy pill shape ───────────────────────────── -->
+    <SolidColorBrush x:Key="ButtonBackground"          Color="#550C1828" />
+    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#88102038" />
+    <SolidColorBrush x:Key="ButtonBackgroundPressed"   Color="#33080F1A" />
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled"  Color="#2208101E" />
+    <SolidColorBrush x:Key="ButtonForeground">#C8DCF0</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonForegroundPointerOver">#E8F4FF</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonForegroundPressed">#A8C0D8</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBorderBrush"         Color="#5080B8D8" />
+    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#7838BDF8" />
+    <SolidColorBrush x:Key="ButtonBorderBrushPressed"  Color="#3838BDF8" />
+
+    <!-- Accent button -->
+    <SolidColorBrush x:Key="AccentButtonBackground">#38BDF8</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver">#5CCEF8</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonBackgroundPressed">#1EA8E0</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonBackgroundDisabled"       Color="#331A3A50" />
+    <SolidColorBrush x:Key="AccentButtonForeground">#010A12</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonForegroundPointerOver">#010A12</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonForegroundPressed">#010A12</SolidColorBrush>
+
+    <!-- ── TextBox / TextArea ─────────────────────────────────────── -->
+    <SolidColorBrush x:Key="TextControlBackground"     Color="#44060A14" />
+    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#550A1020" />
+    <SolidColorBrush x:Key="TextControlBackgroundFocused"     Color="#660A1020" />
+    <SolidColorBrush x:Key="TextControlBorderBrush"    Color="#4470A0C0" />
+    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#6638BDF8" />
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused"     Color="#AA38BDF8" />
+    <SolidColorBrush x:Key="TextControlForeground">#E8F0F8</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlForegroundPointerOver">#E8F0F8</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlPlaceholderForeground"  Color="#55406070" />
+
+    <!-- ── ComboBox ───────────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="ComboBoxBackground"        Color="#44060A14" />
+    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#550A1020" />
+    <SolidColorBrush x:Key="ComboBoxBorderBrush"       Color="#4470A0C0" />
+    <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#6638BDF8" />
+    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#EE0A1020" />  <!-- dropdown needs to be readable -->
+
+    <!-- ── ListBox ────────────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="ListBoxBackground">Transparent</SolidColorBrush>
+    <SolidColorBrush x:Key="ListBoxItemBackgroundPointerOver"       Color="#1438BDF8" />
+    <SolidColorBrush x:Key="ListBoxItemBackgroundSelected"          Color="#2C38BDF8" />
+    <SolidColorBrush x:Key="ListBoxItemBackgroundSelectedPointerOver" Color="#3C38BDF8" />
+    <SolidColorBrush x:Key="ListBoxItemBackgroundSelectedUnfocused" Color="#1C38BDF8" />
+
+    <!-- ── DataGrid ───────────────────────────────────────────────── -->
+    <SolidColorBrush x:Key="DataGridRowBackground">Transparent</SolidColorBrush>
+    <SolidColorBrush x:Key="DataGridRowBackgroundPointerOver"       Color="#1438BDF8" />
+    <SolidColorBrush x:Key="DataGridRowSelectedBackgroundBrush"     Color="#2C38BDF8" />
+    <SolidColorBrush x:Key="DataGridColumnHeaderBackground"         Color="#66091220" />
+    <SolidColorBrush x:Key="DataGridGridLinesBrush"                 Color="#18406080" />
+  </Styles.Resources>
+
+  <!-- ── Global control styles ──────────────────────────────────── -->
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="TabControl">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="TabItem">
+    <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondaryBrush}" />
+    <Setter Property="Padding" Value="16,10" />
+  </Style>
+
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
+  </Style>
+
+  <!-- Glass pill buttons -->
+  <Style Selector="Button">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemeControlCornerRadius}" />
+  </Style>
+
+  <!-- Glass input fields -->
+  <Style Selector="TextBox">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemeControlCornerRadius}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemeControlCornerRadius}" />
+  </Style>
+
+  <!-- Glass panels: sidebar panels, cards, info boxes -->
+  <Style Selector="Border.glass">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemePanelCornerRadius}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ThemeBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BoxShadow" Value="0 8 32 0 #5006070E, 0 2 8 0 #3006070E, inset 0 1 0 0 #3890C8E8" />
+  </Style>
+
+  <!-- Elevated overlay panels (e.g. floating cards, dropdowns) -->
+  <Style Selector="Border.glass-elevated">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemePanelCornerRadius}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ThemeSpecularBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BoxShadow" Value="0 16 48 0 #6006070E, 0 4 16 0 #4006070E, inset 0 1 0 0 #4490C8E8" />
+  </Style>
+
+</Styles>

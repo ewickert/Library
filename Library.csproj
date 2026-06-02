@@ -1,16 +1,35 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType Condition="'$(RuntimeIdentifier)' == 'win-x64'">WinExe</OutputType>
-    <OutputType Condition="'$(RuntimeIdentifier)' != 'win-x64'">Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
     <Nullable>enable</Nullable>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <OutputType>WinExe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <DefineConstants>$(DefineConstants);DESKTOP</DefineConstants>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <OutputType>Exe</OutputType>
+    <SupportedOSPlatformVersion>24</SupportedOSPlatformVersion>
+    <ApplicationId>com.ewickert.mtglibrary</ApplicationId>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+    <OutputType>Exe</OutputType>
+    <SupportedOSPlatformVersion>13.0</SupportedOSPlatformVersion>
+    <ApplicationId>com.ewickert.mtglibrary</ApplicationId>
+    <AppBundleManifest>Platforms/iOS/Info.plist</AppBundleManifest>
+    <RuntimeIdentifier Condition="'$(Configuration)' == 'Debug' and '$(RuntimeIdentifier)' == ''">iossimulator-arm64</RuntimeIdentifier>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.12" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.12" Condition="'$(TargetFramework)' == 'net10.0'" />
+    <PackageReference Include="Avalonia.Android" Version="11.3.12" Condition="'$(TargetFramework)' == 'net10.0-android'" />
+    <PackageReference Include="Avalonia.iOS" Version="11.3.12" Condition="'$(TargetFramework)' == 'net10.0-ios'" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.12" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.12" />
     <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->

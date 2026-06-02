@@ -14,6 +14,7 @@ public partial class ScryfallResultViewModel : ObservableObject
     public ScryfallCardData Data { get; }
 
     [ObservableProperty] private bool _isOnShoppingList;
+    [ObservableProperty] private bool _isInCollection;
     [ObservableProperty] private Bitmap? _image;
     [ObservableProperty] private bool _isLoading;
 
@@ -32,12 +33,16 @@ public partial class ScryfallResultViewModel : ObservableObject
     /// </summary>
     public static Func<ScryfallCardData, Task<ScryfallCardData?>>? GlobalPickPrintingAsync { get; set; }
 
+    /// <summary>Raised after a card is added to collection so parent views can refresh filters.</summary>
+    public Action? AddedToCollection { get; set; }
+
     public ScryfallResultViewModel(ScryfallCardData data, DatabaseService db, ScryfallService scryfall)
     {
         Data      = data;
         _db       = db;
         _scryfall = scryfall;
         _isOnShoppingList = db.IsOnShoppingList(data.ScryfallId);
+        _isInCollection = db.IsInCollectionByScryfallId(data.ScryfallId);
     }
 
     /// <summary>Kick off lazy image load. Called when the grid view becomes active.</summary>
@@ -76,5 +81,49 @@ public partial class ScryfallResultViewModel : ObservableObject
             _db.AddToShoppingList(chosen);
             IsOnShoppingList = true;
         }
+    }
+
+    [RelayCommand]
+    private async Task AddToCollection()
+    {
+        if (IsInCollection) return;
+
+        var chosen = Data;
+        if (GlobalPickPrintingAsync != null)
+        {
+            var picked = await GlobalPickPrintingAsync(Data);
+            if (picked == null) return;
+            chosen = picked;
+        }
+
+        var existing = _db.GetOwnedCardByScryfallId(chosen.ScryfallId);
+        if (existing != null)
+        {
+            existing.Quantity += 1;
+            _db.UpdateCard(existing);
+        }
+        else
+        {
+            _db.AddCard(new Card
+            {
+                Name = chosen.Name,
+                SetCode = chosen.SetCode,
+                SetName = chosen.SetName,
+                CollectorNumber = chosen.CollectorNumber,
+                Foil = false,
+                Rarity = chosen.Rarity,
+                Quantity = 1,
+                ScryfallId = chosen.ScryfallId,
+                Condition = "NM",
+                Language = "en",
+                ColorIdentity = chosen.ColorIdentity,
+                ManaCost = chosen.ManaCost,
+                TypeLine = chosen.TypeLine,
+                Added = DateTime.UtcNow,
+            });
+        }
+
+        IsInCollection = true;
+        AddedToCollection?.Invoke();
     }
 }

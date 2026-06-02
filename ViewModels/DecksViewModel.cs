@@ -23,7 +23,7 @@ public partial class DecksViewModel : ObservableObject
     [ObservableProperty] private double _gridZoom = 1.0;
     public double TileWidth  => Math.Round(150 * _gridZoom);
     public double TileHeight => Math.Round(210 * _gridZoom);
-    partial void OnGridZoomChanged(double v) { OnPropertyChanged(nameof(TileWidth)); OnPropertyChanged(nameof(TileHeight)); }
+    partial void OnGridZoomChanged(double v) { OnPropertyChanged(nameof(TileWidth)); OnPropertyChanged(nameof(TileHeight)); Services.PreferencesService.Instance.DeckGridZoom = v; }
 
     // ── Sorted / category view ──────────────────────────────────────────────────
     [ObservableProperty] private bool _isSortedView;
@@ -39,12 +39,14 @@ public partial class DecksViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsListViewMode));
         OnPropertyChanged(nameof(IsGridViewMode));
+        Services.PreferencesService.Instance.DeckIsGridView = value;
     }
 
     partial void OnIsSortedViewChanged(bool value)
     {
         OnPropertyChanged(nameof(IsListViewMode));
         OnPropertyChanged(nameof(IsGridViewMode));
+        Services.PreferencesService.Instance.DeckIsSortedView = value;
         if (value) RebuildDeckCategories();
     }
 
@@ -102,6 +104,13 @@ public partial class DecksViewModel : ObservableObject
     {
         _db = db;
         _scryfall = scryfall;
+
+        // Restore last view preferences before loading data so the UI starts in the right mode
+        var prefs = Services.PreferencesService.Instance;
+        _isGridView    = prefs.DeckIsGridView;
+        _isSortedView  = prefs.DeckIsSortedView;
+        _gridZoom      = prefs.DeckGridZoom;
+
         LoadDecks();
         LoadCollectionCards();
     }
@@ -490,7 +499,6 @@ public partial class DecksViewModel : ObservableObject
     {
         if (deckCard == null) return;
         _db.RemoveCardFromDeck(deckCard.Id);
-        DeckCards.Remove(deckCard);
         if (CommanderDeckCard?.Id == deckCard.Id)
         {
             CommanderDeckCard = null;
@@ -501,6 +509,16 @@ public partial class DecksViewModel : ObservableObject
                 _db.UpdateDeck(SelectedDeck);
             }
         }
+        ReloadDeckCards();
+    }
+
+    [RelayCommand]
+    private void RemoveCardByCardFromDeck(Card? card)
+    {
+        if (card == null) return;
+        var match = DeckCards.FirstOrDefault(dc => dc.Card?.Id == card.Id);
+        if (match != null)
+            RemoveCardFromDeck(match);
     }
 
     // ── External Scryfall search for collection pane ──────────────────────────

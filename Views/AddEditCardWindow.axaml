@@ -17,7 +17,7 @@
         <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="Bold" Margin="0,0,0,8" />
 
         <!-- Scryfall search -->
-        <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+        <Border Background="{DynamicResource ThemeSurfaceBrush}"
                 CornerRadius="6" Padding="10" Margin="0,0,0,8">
           <StackPanel Spacing="6">
             <TextBlock Text="Search Scryfall" FontWeight="SemiBold" />
@@ -127,7 +127,7 @@
       <DockPanel Grid.Column="2" Margin="0,44,0,0" LastChildFill="True">
         <TextBlock DockPanel.Dock="Top" Text="Preview" FontWeight="SemiBold" Margin="0,0,0,8" />
         <Border CornerRadius="6" ClipToBounds="True" MinWidth="80"
-                Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                Background="{DynamicResource ThemeSurfaceVariantBrush}">
           <Panel>
             <TextBlock Text="No preview" HorizontalAlignment="Center" VerticalAlignment="Center"
                        IsVisible="{Binding PreviewImage, Converter={x:Static ObjectConverters.IsNull}}" />

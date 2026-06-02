@@ -1,0 +1,135 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Styles.Resources>
+    <!-- ── Material Design 3 Dark ──────────────────────────────── -->
+
+    <!-- Semantic surface tokens -->
+    <SolidColorBrush x:Key="ThemeBackgroundBrush">#1C1B1F</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeSurfaceBrush">#2B2930</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeSurfaceVariantBrush">#36333C</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeSurfaceHighBrush">#211F26</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeAccentBrush">#D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeAccentForegroundBrush">#381E72</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeBorderBrush">#49454F</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeTextPrimaryBrush">#E6E1E5</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeTextSecondaryBrush">#CAC4D0</SolidColorBrush>
+    <SolidColorBrush x:Key="ThemeInputBrush">#2B2930</SolidColorBrush>
+    <CornerRadius x:Key="ThemeControlCornerRadius">12</CornerRadius>
+    <CornerRadius x:Key="ThemePanelCornerRadius">16</CornerRadius>
+
+    <!-- ── Fluent system color overrides ──────────────────────────── -->
+    <Color x:Key="SystemAccentColor">#D0BCFF</Color>
+    <Color x:Key="SystemAccentColorDark1">#B8A4E8</Color>
+    <Color x:Key="SystemAccentColorDark2">#A08AD0</Color>
+    <Color x:Key="SystemAccentColorDark3">#7B5EA8</Color>
+    <Color x:Key="SystemAccentColorLight1">#DDD0FF</Color>
+    <Color x:Key="SystemAccentColorLight2">#EAE4FF</Color>
+    <Color x:Key="SystemAccentColorLight3">#F5F0FF</Color>
+
+    <!-- Chrome -->
+    <Color x:Key="ThemeChromeMediumLowColor">#2B2930</Color>
+    <Color x:Key="ThemeChromeMediumColor">#211F26</Color>
+    <Color x:Key="ThemeChromeHighColor">#49454F</Color>
+    <Color x:Key="ThemeChromeAltLowColor">#E6E1E5</Color>
+
+    <!-- Base -->
+    <Color x:Key="ThemeBaseHighColor">#E6E1E5</Color>
+    <Color x:Key="ThemeBaseMediumHighColor">#CAC4D0</Color>
+    <Color x:Key="ThemeBaseMediumColor">#938F99</Color>
+    <Color x:Key="ThemeBaseMediumLowColor">#49454F</Color>
+    <Color x:Key="ThemeBaseLowColor">#2B2930</Color>
+
+    <!-- List row states (8 / 16 % of accent) -->
+    <Color x:Key="ThemeListLowColor">#14D0BCFF</Color>
+    <Color x:Key="ThemeListMediumColor">#29D0BCFF</Color>
+    <Color x:Key="ThemeListAccentLowColor">#29D0BCFF</Color>
+    <Color x:Key="ThemeListAccentMediumColor">#40D0BCFF</Color>
+    <Color x:Key="ThemeListAccentHighColor">#5AD0BCFF</Color>
+
+    <!-- Button -->
+    <SolidColorBrush x:Key="ButtonBackground">#2B2930</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBackgroundPointerOver">#36333C</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBackgroundPressed">#211F26</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled">#1E1C22</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonForeground">#E6E1E5</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonForegroundPointerOver">#F4EFF4</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonForegroundPressed">#CAC4D0</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBorderBrush">#49454F</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver">#938F99</SolidColorBrush>
+    <SolidColorBrush x:Key="ButtonBorderBrushPressed">#49454F</SolidColorBrush>
+
+    <!-- Accent button -->
+    <SolidColorBrush x:Key="AccentButtonBackground">#D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver">#DDD0FF</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonBackgroundPressed">#B8A4E8</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonBackgroundDisabled">#3B3840</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonForeground">#381E72</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonForegroundPointerOver">#381E72</SolidColorBrush>
+    <SolidColorBrush x:Key="AccentButtonForegroundPressed">#381E72</SolidColorBrush>
+
+    <!-- TextBox -->
+    <SolidColorBrush x:Key="TextControlBackground">#2B2930</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#36333C</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBackgroundFocused">#2B2930</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBorderBrush">#49454F</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#938F99</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlBorderBrushFocused">#D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlForeground">#E6E1E5</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlForegroundPointerOver">#E6E1E5</SolidColorBrush>
+    <SolidColorBrush x:Key="TextControlPlaceholderForeground">#938F99</SolidColorBrush>
+
+    <!-- ComboBox -->
+    <SolidColorBrush x:Key="ComboBoxBackground">#2B2930</SolidColorBrush>
+    <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver">#36333C</SolidColorBrush>
+    <SolidColorBrush x:Key="ComboBoxBorderBrush">#49454F</SolidColorBrush>
+    <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver">#938F99</SolidColorBrush>
+    <SolidColorBrush x:Key="ComboBoxDropDownBackground">#2B2930</SolidColorBrush>
+
+    <!-- ListBox -->
+    <SolidColorBrush x:Key="ListBoxBackground">Transparent</SolidColorBrush>
+    <SolidColorBrush x:Key="ListBoxItemBackgroundPointerOver">#14D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="ListBoxItemBackgroundSelected">#29D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="ListBoxItemBackgroundSelectedPointerOver">#38D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="ListBoxItemBackgroundSelectedUnfocused">#20D0BCFF</SolidColorBrush>
+
+    <!-- DataGrid -->
+    <SolidColorBrush x:Key="DataGridRowBackground">Transparent</SolidColorBrush>
+    <SolidColorBrush x:Key="DataGridRowBackgroundPointerOver">#14D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="DataGridRowSelectedBackgroundBrush">#29D0BCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="DataGridColumnHeaderBackground">#211F26</SolidColorBrush>
+    <SolidColorBrush x:Key="DataGridGridLinesBrush">#49454F</SolidColorBrush>
+  </Styles.Resources>
+
+  <!-- ── Global control styles ──────────────────────────────────── -->
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="TabControl">
+    <Setter Property="Background" Value="{DynamicResource ThemeBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="TabItem">
+    <Setter Property="Foreground" Value="{DynamicResource ThemeTextSecondaryBrush}" />
+    <Setter Property="Padding" Value="16,10" />
+  </Style>
+
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource ThemeAccentBrush}" />
+  </Style>
+
+  <Style Selector="Button">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemeControlCornerRadius}" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemeControlCornerRadius}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="CornerRadius" Value="{DynamicResource ThemeControlCornerRadius}" />
+  </Style>
+
+</Styles>

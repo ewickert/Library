@@ -58,10 +58,10 @@
   -->
   <Grid>
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="220" MinWidth="120" />
+      <ColumnDefinition Width="0.24*" MinWidth="140" MaxWidth="260" />
       <ColumnDefinition Width="*" MinWidth="200" />
       <ColumnDefinition Width="5" />
-      <ColumnDefinition Width="290" MinWidth="180" />
+      <ColumnDefinition Width="0.34*" MinWidth="180" MaxWidth="340" />
     </Grid.ColumnDefinitions>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -74,7 +74,7 @@
 
         <!-- New deck form -->
         <Border IsVisible="{Binding IsCreatingDeck}"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                Background="{DynamicResource ThemeSurfaceBrush}"
                 CornerRadius="6" Padding="8">
           <StackPanel Spacing="6">
             <TextBox Text="{Binding NewDeckName}" Watermark="Deck name *" />
@@ -115,34 +115,39 @@
     <Grid x:Name="DeckPane" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="4,8,4,8">
 
       <!-- Header -->
-      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,0,0,4"
-                  IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <TextBlock Text="{Binding SelectedDeck.Name}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" />
-        <TextBlock Text="{Binding SelectedDeck.Format}" Opacity="0.6" VerticalAlignment="Center" />
-        <Button Command="{Binding ToggleViewCommand}" Padding="6,3">
-          <StackPanel Orientation="Horizontal" Spacing="4">
-            <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="12" />
-            <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="12" />
-          </StackPanel>
-        </Button>
-        <Button Command="{Binding ToggleSortedViewCommand}" Padding="6,3"
-                ToolTip.Tip="Toggle sorted category view">
-          <StackPanel Orientation="Horizontal" Spacing="4">
-            <TextBlock Text="⊡ Sorted" IsVisible="{Binding !IsSortedView}" FontSize="12" />
-            <TextBlock Text="⊞ Sorted" IsVisible="{Binding IsSortedView}" FontSize="12" />
-          </StackPanel>
-        </Button>
-        <Button Command="{Binding ToggleCollectionPaneCommand}" Padding="6,3"
-                ToolTip.Tip="Toggle collection pane">
-          <TextBlock Text="📚 Collection" FontSize="12" />
-        </Button>
-        <Button Content="Delete Deck" Command="{Binding DeleteDeckCommand}"
-                Background="#CC3300" Foreground="White" />
-      </StackPanel>
+      <ScrollViewer Grid.Row="0"
+                    HorizontalScrollBarVisibility="Auto"
+                    VerticalScrollBarVisibility="Disabled"
+                    Margin="0,0,0,4"
+                    IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <TextBlock Text="{Binding SelectedDeck.Name}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding SelectedDeck.Format}" Opacity="0.6" VerticalAlignment="Center" />
+          <Button Command="{Binding ToggleViewCommand}" Padding="6,3">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="12" />
+              <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="12" />
+            </StackPanel>
+          </Button>
+          <Button Command="{Binding ToggleSortedViewCommand}" Padding="6,3"
+                  ToolTip.Tip="Toggle sorted category view">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+              <TextBlock Text="⊡ Sorted" IsVisible="{Binding !IsSortedView}" FontSize="12" />
+              <TextBlock Text="⊞ Sorted" IsVisible="{Binding IsSortedView}" FontSize="12" />
+            </StackPanel>
+          </Button>
+          <Button Command="{Binding ToggleCollectionPaneCommand}" Padding="6,3"
+                  ToolTip.Tip="Toggle collection pane">
+            <TextBlock Text="📚 Collection" FontSize="12" />
+          </Button>
+          <Button Content="Delete Deck" Command="{Binding DeleteDeckCommand}"
+                  Background="#CC3300" Foreground="White" />
+        </StackPanel>
+      </ScrollViewer>
 
       <!-- Commander info bar (Commander format only) -->
       <Border Grid.Row="1" Margin="0,0,0,6" Padding="8,6" CornerRadius="6"
-              Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+              Background="{DynamicResource ThemeSurfaceBrush}"
               IsVisible="{Binding IsCommanderFormat}">
         <StackPanel Spacing="4">
           <StackPanel Orientation="Horizontal" Spacing="8">
@@ -251,7 +256,7 @@
                         Height="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).TileHeight}"
                         CornerRadius="8" ClipToBounds="True" Margin="5"
                         ToolTip.ShowDelay="200"
-                        Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                        Background="{DynamicResource ThemeSurfaceVariantBrush}">
                   <Border.ContextMenu>
                     <ContextMenu x:CompileBindings="False">
                       <MenuItem Header="Remove from deck" Command="{Binding RemoveFromDeckCommand}" />
@@ -335,7 +340,7 @@
 
               <!-- Card image — full card aspect ratio -->
               <Border Width="200" Height="279" CornerRadius="10" ClipToBounds="True"
-                      Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                      Background="{DynamicResource ThemeSurfaceVariantBrush}">
                 <Panel>
                   <Image Source="{Binding CommanderSlot.Image}" Stretch="UniformToFill"
                          IsVisible="{Binding CommanderSlot.Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -367,7 +372,7 @@
                   <StackPanel Spacing="0" Margin="0,0,0,10">
 
                     <!-- Column header -->
-                    <Border Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                    <Border Background="{DynamicResource ThemeSurfaceBrush}"
                             CornerRadius="4,4,0,0" Padding="8,6">
                       <StackPanel Orientation="Horizontal" Spacing="5">
                         <TextBlock Text="{Binding Icon}" FontSize="14" VerticalAlignment="Center"/>
@@ -378,7 +383,7 @@
                     </Border>
 
                     <!-- List rows (when grid is off) -->
-                    <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                    <Border Background="{DynamicResource ThemeSurfaceVariantBrush}"
                             CornerRadius="0,0,4,4" Padding="0,2"
                             IsVisible="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).IsGridView, Converter={x:Static BoolConverters.Not}}">
                       <ItemsControl ItemsSource="{Binding Items}">
@@ -438,7 +443,7 @@
                     </Border>
 
                     <!-- Grid tiles (when grid is on) -->
-                    <Border Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                    <Border Background="{DynamicResource ThemeSurfaceVariantBrush}"
                             CornerRadius="0,0,4,4" Padding="4"
                             IsVisible="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).IsGridView}">
                       <ItemsControl ItemsSource="{Binding Items}">
@@ -450,7 +455,7 @@
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:DeckCardSortedItem">
                             <Border Width="130" Height="182" CornerRadius="8" ClipToBounds="True"
-                                    Margin="3" Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+                                    Margin="3" Background="{DynamicResource ThemeSurfaceVariantBrush}"
                                     ToolTip.ShowDelay="200">
                               <Border.ContextMenu>
                                 <ContextMenu x:CompileBindings="False">
@@ -536,8 +541,8 @@
     <!-- ══════════════════════════════════════════════════════════
          Col 3: Collection pane (collapsible)
          ══════════════════════════════════════════════════════════ -->
-    <Border Grid.Column="3" Margin="4,8,8,8"
-            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+    <Border x:Name="CollectionPaneRoot" Grid.Column="3" Margin="4,8,8,8"
+            Background="{DynamicResource ThemeSurfaceBrush}"
             CornerRadius="8"
             IsVisible="{Binding IsCollectionPaneOpen}">
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
@@ -669,7 +674,7 @@
                           Height="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).CollectionTileHeight}"
                           CornerRadius="6" ClipToBounds="True" Margin="4"
                           ToolTip.ShowDelay="200"
-                          Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                          Background="{DynamicResource ThemeSurfaceVariantBrush}">
                     <ToolTip.Tip>
                       <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
                         <Panel>
@@ -791,7 +796,7 @@
                           Height="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).CollectionTileHeight}"
                           CornerRadius="6" ClipToBounds="True" Margin="4"
                           ToolTip.ShowDelay="200"
-                          Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+                          Background="{DynamicResource ThemeSurfaceVariantBrush}">
                     <ToolTip.Tip>
                       <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
                         <Panel>

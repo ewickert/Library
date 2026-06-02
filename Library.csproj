@@ -41,4 +41,9 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.12" />
   </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/Icons/Dice/*.svg" />
+    <AvaloniaResource Include="Assets/Icons/Counters/*.svg" />
+  </ItemGroup>
 </Project>

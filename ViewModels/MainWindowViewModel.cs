@@ -9,13 +9,19 @@ namespace Library.ViewModels;
 
 public partial class MainWindowViewModel : ObservableObject
 {
+    private int _lastNonCommanderTabIndex;
+
     public CollectionViewModel Collection { get; }
     public DecksViewModel Decks { get; }
     public BindersViewModel Binders { get; }
     public ShoppingViewModel Shopping { get; }
+    public CommanderLifeViewModel CommanderLife { get; }
 
     [ObservableProperty]
     private int _selectedTabIndex;
+
+    [ObservableProperty]
+    private bool _isCommanderMode;
 
     [ObservableProperty]
     private string _importStatus = string.Empty;
@@ -45,12 +51,30 @@ public partial class MainWindowViewModel : ObservableObject
         Decks = new DecksViewModel(db, scryfall);
         Binders = new BindersViewModel(db, scryfall);
         Shopping = new ShoppingViewModel(db, scryfall, Decks);
+        CommanderLife = new CommanderLifeViewModel();
     }
 
     // Tab index 3 = Shopping — reload whenever the user navigates to it
     partial void OnSelectedTabIndexChanged(int value)
     {
         if (value == 3) Shopping.Reload();
+        if (value is >= 0 and <= 3)
+            _lastNonCommanderTabIndex = value;
+    }
+
+    [RelayCommand]
+    private void EnterCommanderMode()
+    {
+        IsCommanderMode = true;
+        KeepScreenOnService.SetEnabled(true);
+    }
+
+    [RelayCommand]
+    private void ExitCommanderMode()
+    {
+        IsCommanderMode = false;
+        KeepScreenOnService.SetEnabled(false);
+        SelectedTabIndex = _lastNonCommanderTabIndex;
     }
 
     // ── File menu operations ───────────────────────────────────────

@@ -1,0 +1,392 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Library.ViewModels"
+             x:Class="Library.Views.CommanderLifePlayerView"
+             x:Name="Root"
+             x:DataType="vm:CommanderPlayerViewModel">
+  <Grid>
+    <Border Background="{Binding Background}"
+            CornerRadius="10"
+            Padding="10">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <TextBox Text="{Binding Name}" HorizontalAlignment="Stretch" Foreground="White" Background="#22000000" BorderBrush="#55FFFFFF" />
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10" VerticalAlignment="Center">
+          <Button Grid.Column="0"
+            Content="-"
+            Command="{Binding DecrementLifeCommand}"
+            FontSize="28"
+            Width="64"
+            Height="64"
+            Padding="0"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center" />
+            <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+              <StackPanel HorizontalAlignment="Center" Spacing="4">
+                <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Life}"
+                             IsVisible="{Binding ShowLifeDisplay}"
+                             FontSize="56"
+                             FontWeight="Bold"
+                             Foreground="White"
+                             TextAlignment="Center"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
+
+                  <StackPanel Orientation="Horizontal"
+                              Spacing="4"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Top"
+                              Margin="0,-6,0,0"
+                              IsVisible="{Binding HasAnyStatus}">
+                    <Border IsVisible="{Binding IsMonarch}"
+                            Width="18"
+                            Height="18"
+                            CornerRadius="9"
+                            Background="#D98800"
+                            BorderBrush="#FFF0C36D"
+                            BorderThickness="1">
+                      <Path Data="M4 12 L6 7 L9 10 L12 7 L14 12 L14 14 L4 14 Z M5 14 H13 V15 H5 Z"
+                            Stretch="Uniform"
+                            Stroke="White"
+                            StrokeThickness="1"
+                            Fill="#66FFFFFF"
+                            Margin="2" />
+                    </Border>
+
+                    <Border IsVisible="{Binding IsBlessingOfTheCity}"
+                            Width="18"
+                            Height="18"
+                            CornerRadius="9"
+                            Background="#1E88E5"
+                            BorderBrush="#FF9CCFFF"
+                            BorderThickness="1">
+                      <Path Data="M4 14 V8 H7 V14 M7 14 V6 H10 V14 M10 14 V9 H13 V14 M4 14 H13"
+                            Stretch="Uniform"
+                            Stroke="White"
+                            StrokeThickness="1"
+                            Margin="2" />
+                    </Border>
+                  </StackPanel>
+                </Grid>
+
+                <Grid IsVisible="{Binding ShowRollDisplay}"
+                Width="64"
+                Height="64"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <Canvas Width="64" Height="64"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+              <Path Data="{Binding RollDieGeometry}"
+              Stretch="None"
+              Stroke="#F4F7FF"
+              StrokeThickness="2.4"
+              Fill="#2A203047" />
+              <Path Data="{Binding RollDieInnerGeometry}"
+              Stretch="None"
+              Stroke="#A6EAF2FF"
+              StrokeThickness="1.2" />
+            </Canvas>
+            <Border Width="38"
+              Height="24"
+              CornerRadius="12"
+              Background="#CC0F1520"
+              BorderBrush="#99FFFFFF"
+              BorderThickness="1"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center" />
+            <Label Content="{Binding RollDisplayText}"
+                   FontSize="20"
+                   FontWeight="Bold"
+                   Foreground="White"
+                   Width="36"
+                   Padding="0"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   HorizontalContentAlignment="Center"
+                   VerticalContentAlignment="Center" />
+                </Grid>
+
+                    <StackPanel Orientation="Horizontal"
+                        Spacing="6"
+                        HorizontalAlignment="Center">
+                  <Button Content="+"
+                      Width="28"
+                      Height="28"
+                      FontSize="18"
+                      FontWeight="Bold"
+                      Padding="0"
+                      Command="{Binding OpenCounterPickerCommand}"
+                      HorizontalAlignment="Center"
+                      HorizontalContentAlignment="Center"
+                      VerticalContentAlignment="Center"
+                      ToolTip.Tip="Add counter" />
+
+                  <Button Width="28"
+                      Height="28"
+                      Padding="0"
+                      Command="{Binding ToggleCommanderDamagePanelCommand}"
+                      HorizontalAlignment="Center"
+                      HorizontalContentAlignment="Center"
+                      VerticalContentAlignment="Center"
+                      ToolTip.Tip="Allocate commander damage">
+                    <Path Data="M12 8 L16 4 L44 32 L40 36 Z M38 34 L46 26 L49 29 L41 37 Z M47 28 L53 22 L56 25 L50 31 Z M54 21 L58 17 L61 20 L57 24 Z M52 8 L48 4 L20 32 L24 36 Z M26 34 L18 26 L15 29 L23 37 Z M17 28 L11 22 L8 25 L14 31 Z M10 21 L6 17 L3 20 L7 24 Z"
+                      Width="16"
+                      Height="16"
+                      Stretch="Uniform"
+                      Stroke="#EAF2FF"
+                      StrokeThickness="1.1"
+                      Fill="#66FFFFFF" />
+                  </Button>
+
+                  <Button Width="28"
+                      Height="28"
+                      Padding="0"
+                      Command="{Binding OpenStatusPickerCommand}"
+                      HorizontalAlignment="Center"
+                      HorizontalContentAlignment="Center"
+                      VerticalContentAlignment="Center"
+                      ToolTip.Tip="Add status">
+                    <Path Data="M8 2 L10 6 L14 6 L11 9 L12 13 L8 11 L4 13 L5 9 L2 6 L6 6 Z"
+                      Width="14"
+                      Height="14"
+                      Stretch="Uniform"
+                      Stroke="White"
+                      StrokeThickness="1"
+                      Fill="#66FFFFFF" />
+                  </Button>
+                    </StackPanel>
+              </StackPanel>
+
+              <ScrollViewer IsVisible="{Binding HasCounters}"
+                HorizontalAlignment="Center"
+                MaxHeight="92"
+                VerticalScrollBarVisibility="Auto"
+                HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding Counters}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="#33000000" CornerRadius="6" Padding="4" Margin="0,0,6,6">
+                      <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="6" HorizontalAlignment="Center">
+                        <Button Grid.Column="0"
+                                Content="-"
+                                Command="{Binding DecrementCommand}"
+                                Width="28"
+                                Height="28"
+                                Padding="0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center" />
+
+                        <Grid Grid.Column="1"
+                              Width="64"
+                              Height="34"
+                              ToolTip.Tip="{Binding Name}">
+                          <Path Data="{Binding IconGeometry}"
+                                Stretch="Uniform"
+                                Stroke="#EAF2FF"
+                                StrokeThickness="1.6"
+                                Fill="{Binding IconFill}"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch" />
+                          <Path Data="{Binding IconInnerGeometry}"
+                                Stretch="Uniform"
+                                Stroke="#A6EAF2FF"
+                                StrokeThickness="1.1"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Stretch" />
+                          <Border Width="24"
+                                  Height="16"
+                                  CornerRadius="8"
+                                  Background="#CC0F1520"
+                                  BorderBrush="#99FFFFFF"
+                                  BorderThickness="1"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center" />
+                          <Label Content="{Binding Value}"
+                                 FontSize="11"
+                                 FontWeight="Bold"
+                                 Foreground="White"
+                                 Width="22"
+                                 Height="14"
+                                 Padding="0"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 HorizontalContentAlignment="Center"
+                                 VerticalContentAlignment="Center" />
+                        </Grid>
+
+                        <Button Grid.Column="2"
+                                Content="+"
+                                Command="{Binding IncrementCommand}"
+                                Width="28"
+                                Height="28"
+                                Padding="0"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </StackPanel>
+          <Button Grid.Column="2"
+            Content="+"
+            Command="{Binding IncrementLifeCommand}"
+            FontSize="28"
+            Width="64"
+            Height="64"
+            Padding="0"
+            HorizontalContentAlignment="Center"
+            VerticalContentAlignment="Center" />
+        </Grid>
+        <Border Grid.Row="2"
+                Margin="0,8,0,0"
+                Padding="8,6"
+                CornerRadius="8"
+                Background="#22000000"
+                MaxHeight="150"
+          IsVisible="{Binding ShowCommanderDamagePanel}">
+          <ScrollViewer VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled"
+                        MaxHeight="108">
+              <ItemsControl ItemsSource="{Binding CommanderDamageByOpponent}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <UniformGrid Columns="2" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="#22000000" CornerRadius="6" Padding="4" Margin="0,0,6,6">
+                      <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="6" HorizontalAlignment="Center">
+                          <Button Grid.Column="0"
+                              Content="-"
+                              Command="{Binding DecrementCommand}"
+                              Width="30"
+                              Height="26"
+                              Padding="0"
+                              HorizontalContentAlignment="Center"
+                              VerticalContentAlignment="Center" />
+
+                          <Border Grid.Column="1"
+                            Width="42"
+                            Height="26"
+                            CornerRadius="6"
+                            Background="{Binding OpponentColor}"
+                            BorderBrush="#99FFFFFF"
+                            BorderThickness="1"
+                            ToolTip.Tip="{Binding OpponentName}">
+                      <TextBlock Text="{Binding Value}"
+                           Foreground="White"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           TextAlignment="Center" />
+                          </Border>
+
+                          <Button Grid.Column="2"
+                              Content="+"
+                              Command="{Binding IncrementCommand}"
+                              Width="30"
+                              Height="26"
+                              Padding="0"
+                              HorizontalContentAlignment="Center"
+                              VerticalContentAlignment="Center" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+    </Border>
+
+    <Border IsVisible="{Binding IsHighRollWinner}"
+            CornerRadius="10"
+            BorderBrush="#FFD700"
+            BorderThickness="7"
+            BoxShadow="0 0 18 4 #B3FFD700"
+            IsHitTestVisible="False" />
+
+    <Grid IsVisible="{Binding IsCounterPickerOpen}" Background="#99000000" ZIndex="5">
+      <Border Width="220"
+              MaxHeight="300"
+              CornerRadius="10"
+              Background="#FF18212B"
+              BorderBrush="#66FFFFFF"
+              BorderThickness="1"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Padding="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Add Counter"
+                     Foreground="White"
+                     FontWeight="Bold"
+                     HorizontalAlignment="Center" />
+
+          <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding CommonCounterTypes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Button Content="{Binding .}"
+                          Margin="0,0,0,6"
+                          Command="{Binding #Root.DataContext.AddCounterTypeCommand}"
+                          CommandParameter="{Binding .}"
+                          HorizontalContentAlignment="Center" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <Button Content="Cancel"
+                  Command="{Binding CloseCounterPickerCommand}"
+                  HorizontalContentAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Grid IsVisible="{Binding IsStatusPickerOpen}" Background="#99000000" ZIndex="6">
+      <Border Width="240"
+              CornerRadius="10"
+              Background="#FF18212B"
+              BorderBrush="#66FFFFFF"
+              BorderThickness="1"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Padding="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Add Status"
+                     Foreground="White"
+                     FontWeight="Bold"
+                     HorizontalAlignment="Center" />
+
+          <Button Content="Monarch"
+                  Command="{Binding AddStatusTypeCommand}"
+                  CommandParameter="Monarch"
+                  HorizontalContentAlignment="Center" />
+          <TextBlock Text="Exclusive: only one player"
+                     Foreground="#BBD7E9FF"
+                     FontSize="11"
+                     HorizontalAlignment="Center"
+                     Margin="0,-4,0,0" />
+
+          <Button Content="Blessing Of The City"
+                  Command="{Binding AddStatusTypeCommand}"
+                  CommandParameter="Blessing Of The City"
+                  HorizontalContentAlignment="Center" />
+
+          <Button Content="Cancel"
+                  Command="{Binding CloseStatusPickerCommand}"
+                  HorizontalContentAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

@@ -36,7 +36,9 @@ for RID in "${TARGETS[@]}"; do
   dotnet publish "$PROJ" \
     -c Release \
     -r "$RID" \
+    -f net10.0 \
     --self-contained true \
+    -p:UseMonoRuntime=false \
     -p:PublishSingleFile=true \
     -p:IncludeNativeLibrariesForSelfExtract=true \
     -p:EnableCompressionInSingleFile=true \

@@ -15,6 +15,7 @@ public partial class MainWindowViewModel : ObservableObject
     public DecksViewModel Decks { get; }
     public BindersViewModel Binders { get; }
     public ShoppingViewModel Shopping { get; }
+    public GamesViewModel Games { get; }
     public CommanderLifeViewModel CommanderLife { get; }
 
     [ObservableProperty]
@@ -51,14 +52,16 @@ public partial class MainWindowViewModel : ObservableObject
         Decks = new DecksViewModel(db, scryfall);
         Binders = new BindersViewModel(db, scryfall);
         Shopping = new ShoppingViewModel(db, scryfall, Decks);
+        Games = new GamesViewModel(db);
         CommanderLife = new CommanderLifeViewModel();
     }
 
-    // Tab index 3 = Shopping — reload whenever the user navigates to it
+    // Tab index 3 = Shopping, 4 = Games — reload whenever the user navigates to them
     partial void OnSelectedTabIndexChanged(int value)
     {
         if (value == 3) Shopping.Reload();
-        if (value is >= 0 and <= 3)
+        if (value == 4) Games.Reload();
+        if (value is >= 0 and <= 4)
             _lastNonCommanderTabIndex = value;
     }
 

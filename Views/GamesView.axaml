@@ -1,0 +1,330 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Library.ViewModels"
+             xmlns:models="using:Library.Models"
+             xmlns:converters="using:Library.Views"
+             x:Class="Library.Views.GamesView"
+             x:DataType="vm:GamesViewModel">
+
+  <Grid ColumnDefinitions="340,5,*" Margin="8">
+
+    <!-- ══════════════════════════════════════════════════════════
+         Col 0: Stats + Log game form
+         ══════════════════════════════════════════════════════════ -->
+    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="10" Margin="0,0,8,0">
+
+        <TextBlock Text="Games" FontWeight="Bold" FontSize="14" />
+
+        <!-- ── Overall stats ── -->
+        <Border Background="{DynamicResource ThemeSurfaceBrush}" CornerRadius="8" Padding="12">
+          <StackPanel Spacing="8">
+            <TextBlock Text="My Record" FontWeight="SemiBold" FontSize="12" />
+
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+              <!-- Wins -->
+              <Border Grid.Column="0" Background="#1E3A2F" CornerRadius="6" Padding="8,6">
+                <StackPanel HorizontalAlignment="Center" Spacing="2">
+                  <TextBlock Text="{Binding TotalWins}" FontSize="22" FontWeight="Bold"
+                             Foreground="#7DCFAA" HorizontalAlignment="Center" />
+                  <TextBlock Text="Wins" FontSize="11" Opacity="0.7" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Border>
+              <!-- Losses -->
+              <Border Grid.Column="1" Background="#3A1E1E" CornerRadius="6" Padding="8,6">
+                <StackPanel HorizontalAlignment="Center" Spacing="2">
+                  <TextBlock Text="{Binding TotalLosses}" FontSize="22" FontWeight="Bold"
+                             Foreground="#CF7D7D" HorizontalAlignment="Center" />
+                  <TextBlock Text="Losses" FontSize="11" Opacity="0.7" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Border>
+              <!-- Win rate -->
+              <Border Grid.Column="2" Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8,6">
+                <StackPanel HorizontalAlignment="Center" Spacing="2">
+                  <TextBlock Text="{Binding WinRateText}" FontSize="22" FontWeight="Bold"
+                             HorizontalAlignment="Center" />
+                  <TextBlock Text="Win Rate" FontSize="11" Opacity="0.7" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+              <TextBlock Grid.Column="0" Text="Avg turn won" Opacity="0.7" FontSize="12" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding AvgWinTurnText}" FontWeight="SemiBold" FontSize="12" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Avg turn lost" Opacity="0.7" FontSize="12" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding AvgLossTurnText}" FontWeight="SemiBold" FontSize="12" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Grid.Column="0" Text="Total games" Opacity="0.7" FontSize="12" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding TotalGames}" FontWeight="SemiBold" FontSize="12" />
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- ── Win turn distribution ── -->
+        <Border Background="{DynamicResource ThemeSurfaceBrush}" CornerRadius="8" Padding="12"
+                IsVisible="{Binding WinTurnBins.Count}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Win turn distribution" FontWeight="SemiBold" FontSize="12" />
+            <ItemsControl ItemsSource="{Binding WinTurnBins}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeckCurveBinViewModel">
+                  <Grid ColumnDefinitions="40,*,28" Margin="0,1">
+                    <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Height="12" Background="#22000000" CornerRadius="3">
+                      <Border Height="12" HorizontalAlignment="Left" Width="{Binding BarWidth}" CornerRadius="3"
+                              Background="#667DCFAA" />
+                    </Border>
+                    <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11"
+                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- ── Loss turn distribution ── -->
+        <Border Background="{DynamicResource ThemeSurfaceBrush}" CornerRadius="8" Padding="12"
+                IsVisible="{Binding LossTurnBins.Count}">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Loss turn distribution" FontWeight="SemiBold" FontSize="12" />
+            <ItemsControl ItemsSource="{Binding LossTurnBins}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeckCurveBinViewModel">
+                  <Grid ColumnDefinitions="40,*,28" Margin="0,1">
+                    <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Height="12" Background="#22000000" CornerRadius="3">
+                      <Border Height="12" HorizontalAlignment="Left" Width="{Binding BarWidth}" CornerRadius="3"
+                              Background="#66CF7D7D" />
+                    </Border>
+                    <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11"
+                               HorizontalAlignment="Right" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- ── Log game button / form ── -->
+        <Button Content="+ Log Game" Command="{Binding StartLogGameCommand}"
+                IsVisible="{Binding !IsLoggingGame}"
+                HorizontalAlignment="Stretch" Classes="accent" />
+
+        <Border IsVisible="{Binding IsLoggingGame}"
+                Background="{DynamicResource ThemeSurfaceBrush}"
+                CornerRadius="8" Padding="12">
+          <StackPanel Spacing="10">
+            <TextBlock Text="Log New Game" FontWeight="SemiBold" FontSize="13" />
+
+            <!-- Player count -->
+            <StackPanel Spacing="4">
+              <TextBlock Text="Number of players" FontSize="12" Opacity="0.75" />
+              <StackPanel Orientation="Horizontal" Spacing="4">
+                <RadioButton Content="2" IsChecked="{Binding PlayerCount, Converter={x:Static converters:IntEqualityConverter.Instance}, ConverterParameter=2}"
+                             GroupName="PlayerCount" />
+                <RadioButton Content="3" IsChecked="{Binding PlayerCount, Converter={x:Static converters:IntEqualityConverter.Instance}, ConverterParameter=3}"
+                             GroupName="PlayerCount" />
+                <RadioButton Content="4" IsChecked="{Binding PlayerCount, Converter={x:Static converters:IntEqualityConverter.Instance}, ConverterParameter=4}"
+                             GroupName="PlayerCount" />
+                <RadioButton Content="5" IsChecked="{Binding PlayerCount, Converter={x:Static converters:IntEqualityConverter.Instance}, ConverterParameter=5}"
+                             GroupName="PlayerCount" />
+                <RadioButton Content="6" IsChecked="{Binding PlayerCount, Converter={x:Static converters:IntEqualityConverter.Instance}, ConverterParameter=6}"
+                             GroupName="PlayerCount" />
+              </StackPanel>
+            </StackPanel>
+
+            <!-- Player rows -->
+            <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+              <StackPanel Spacing="8">
+                <Grid ColumnDefinitions="*,60,*,50" ColumnSpacing="4">
+                  <TextBlock Grid.Column="0" Text="Name" FontSize="10" Opacity="0.6" />
+                  <TextBlock Grid.Column="1" Text="Is Me" FontSize="10" Opacity="0.6" HorizontalAlignment="Center" />
+                  <TextBlock Grid.Column="2" Text="Deck" FontSize="10" Opacity="0.6" />
+                  <TextBlock Grid.Column="3" Text="Place" FontSize="10" Opacity="0.6" HorizontalAlignment="Center" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding FormPlayers}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LogGamePlayerViewModel">
+                      <StackPanel Spacing="4" Margin="0,0,0,6">
+                        <Grid ColumnDefinitions="*,60,*,50" ColumnSpacing="4">
+                          <!-- Name -->
+                          <TextBox Grid.Column="0" Text="{Binding PlayerName}" FontSize="12"
+                                   Watermark="Player name" Height="30" Padding="6,4" />
+                          <!-- Is Me -->
+                          <CheckBox Grid.Column="1" IsChecked="{Binding IsMe}"
+                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+                          <!-- Deck selector -->
+                          <ComboBox Grid.Column="2" Height="30" FontSize="11"
+                                    SelectedItem="{Binding LinkedDeck}"
+                                    ItemsSource="{Binding $parent[UserControl].((vm:GamesViewModel)DataContext).AvailableDecks}"
+                                    PlaceholderText="Link deck…">
+                            <ComboBox.ItemTemplate>
+                              <DataTemplate x:DataType="models:Deck">
+                                <TextBlock Text="{Binding Name}" FontSize="11" />
+                              </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                          </ComboBox>
+                          <!-- Finish Position -->
+                          <NumericUpDown Grid.Column="3" Value="{Binding FinishPosition}"
+                                         Minimum="1" Maximum="6"
+                                         Height="30" FontSize="12"
+                                         FormatString="0"
+                                         HorizontalContentAlignment="Center"
+                                         Increment="1" />
+                        </Grid>
+                        <!-- Manual deck name when no linked deck -->
+                        <TextBox Text="{Binding DeckName}"
+                                 Watermark="Deck name (optional)"
+                                 FontSize="11" Height="28" Padding="6,3"
+                                 IsVisible="{Binding !HasLinkedDeck}" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- Turn ended -->
+            <Grid ColumnDefinitions="*,100" ColumnSpacing="8">
+              <TextBlock Grid.Column="0" Text="Turn game ended (0 = unknown)" FontSize="12"
+                         Opacity="0.75" VerticalAlignment="Center" />
+              <NumericUpDown Grid.Column="1" Value="{Binding TurnEnded}"
+                              Minimum="0" Maximum="200" Increment="1"
+                              FormatString="0" Height="30" FontSize="12" />
+            </Grid>
+
+            <!-- Notes -->
+            <TextBox Text="{Binding Notes}" Watermark="Notes (optional)"
+                     FontSize="12" Height="56" AcceptsReturn="True"
+                     TextWrapping="Wrap" />
+
+            <!-- Error -->
+            <Border Background="#442200" BorderBrush="#AA6633" BorderThickness="1"
+                    CornerRadius="4" Padding="8,5"
+                    IsVisible="{Binding HasLogGameError}">
+              <TextBlock Text="{Binding LogGameError}" FontSize="11"
+                         Foreground="#FFCC88" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Save / Cancel -->
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="Save Game" Command="{Binding SaveGameCommand}" Classes="accent" />
+              <Button Content="Cancel"    Command="{Binding CancelLogGameCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Splitter -->
+    <GridSplitter Grid.Column="1" ResizeDirection="Columns"
+                  Background="Transparent" Width="5" HorizontalAlignment="Stretch" />
+
+    <!-- ══════════════════════════════════════════════════════════
+         Col 2: Game history
+         ══════════════════════════════════════════════════════════ -->
+    <DockPanel Grid.Column="2">
+      <TextBlock DockPanel.Dock="Top" Text="Game History"
+                 FontWeight="Bold" FontSize="13" Margin="0,0,0,8" />
+
+      <!-- Empty state -->
+      <Border DockPanel.Dock="Top"
+              Background="{DynamicResource ThemeSurfaceBrush}"
+              CornerRadius="8" Padding="16"
+              IsVisible="{Binding !Games.Count}">
+        <TextBlock Text="No games logged yet. Use '+ Log Game' to record your first game."
+                   Opacity="0.6" TextWrapping="Wrap" />
+      </Border>
+
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ItemsControl ItemsSource="{Binding Games}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="models:Game">
+              <Border Background="{DynamicResource ThemeSurfaceBrush}"
+                      CornerRadius="8" Padding="12" Margin="0,0,0,8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+
+                  <!-- Result badge -->
+                  <Border Grid.Column="0" Width="32" Height="32" CornerRadius="4"
+                          VerticalAlignment="Center"
+                          Background="{Binding IWon, Converter={x:Static converters:BoolToWinColorConverter.Instance}}">
+                    <TextBlock Text="{Binding ResultText}" FontWeight="Bold" FontSize="14"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="White" />
+                  </Border>
+
+                  <!-- Details -->
+                  <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Text="{Binding PlayedAtLocal}" FontWeight="SemiBold" FontSize="13" />
+                      <TextBlock Text="{Binding TurnEnded, StringFormat='Turn {0}'}"
+                                 IsVisible="{Binding TurnEnded, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                 Opacity="0.6" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Winner -->
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="Winner:" Opacity="0.6" FontSize="11" />
+                      <TextBlock Text="{Binding WinnerName}" FontSize="11" FontWeight="SemiBold" />
+                    </StackPanel>
+
+                    <!-- Players -->
+                    <ItemsControl ItemsSource="{Binding Players}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:GamePlayer">
+                          <Border Margin="0,2,6,2" Padding="5,2" CornerRadius="3"
+                                  Background="{DynamicResource ThemeSurfaceVariantBrush}">
+                            <StackPanel Orientation="Horizontal" Spacing="3">
+                              <TextBlock Text="★" FontSize="10" Foreground="#FFD700"
+                                         IsVisible="{Binding IsWinner}"
+                                         VerticalAlignment="Center" />
+                              <TextBlock FontSize="11" VerticalAlignment="Center">
+                                <TextBlock.Text>
+                                  <MultiBinding StringFormat="{}{0} ({1})">
+                                    <Binding Path="PlayerName" />
+                                    <Binding Path="DeckDisplayName" />
+                                  </MultiBinding>
+                                </TextBlock.Text>
+                              </TextBlock>
+                              <TextBlock Text="{Binding FinishPosition, StringFormat='#{0}'}"
+                                         FontSize="10" Opacity="0.6" VerticalAlignment="Center" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Notes -->
+                    <TextBlock Text="{Binding Notes}" FontSize="11" Opacity="0.6"
+                               FontStyle="Italic" TextWrapping="Wrap"
+                               IsVisible="{Binding Notes, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </StackPanel>
+
+                  <!-- Delete -->
+                  <Button Grid.Column="2"
+                          Content="✕"
+                          Command="{Binding $parent[UserControl].((vm:GamesViewModel)DataContext).DeleteGameCommand}"
+                          CommandParameter="{Binding}"
+                          Padding="6,4" FontSize="11"
+                          VerticalAlignment="Top"
+                          ToolTip.Tip="Delete this game record" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </DockPanel>
+
+  </Grid>
+</UserControl>

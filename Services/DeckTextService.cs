@@ -21,6 +21,17 @@ public static class DeckTextService
     // Sideboard
     // 2 Tormod's Crypt
 
+    private static string CardLine(DeckCard dc)
+    {
+        var card = dc.Card!;
+        var suffix = string.IsNullOrWhiteSpace(card.SetCode)
+            ? ""
+            : string.IsNullOrWhiteSpace(card.CollectorNumber)
+                ? $" ({card.SetCode.ToUpperInvariant()})"
+                : $" ({card.SetCode.ToUpperInvariant()}) {card.CollectorNumber}";
+        return $"{dc.Quantity} {card.Name}{suffix}";
+    }
+
     public static string Export(Deck deck)
     {
         var sb = new StringBuilder();
@@ -38,26 +49,26 @@ public static class DeckTextService
         {
             sb.AppendLine("Commander");
             foreach (var dc in commanders)
-                sb.AppendLine($"{dc.Quantity} {dc.Card!.Name}");
+                sb.AppendLine(CardLine(dc));
             sb.AppendLine();
         }
 
         sb.AppendLine("Deck");
         foreach (var dc in main)
-            sb.AppendLine($"{dc.Quantity} {dc.Card!.Name}");
+            sb.AppendLine(CardLine(dc));
 
         if (side.Count > 0)
         {
             sb.AppendLine();
             sb.AppendLine("Sideboard");
             foreach (var dc in side)
-                sb.AppendLine($"{dc.Quantity} {dc.Card!.Name}");
+                sb.AppendLine(CardLine(dc));
         }
 
         return sb.ToString();
     }
 
-    public record ParsedCard(int Quantity, string Name, bool IsCommander, bool IsSideboard);
+    public record ParsedCard(int Quantity, string Name, bool IsCommander, bool IsSideboard, string? SetCode = null, string? CollectorNumber = null);
 
     public record ParseResult(
         string DeckName,
@@ -106,12 +117,26 @@ public static class DeckTextService
             }
 
             var qty = int.Parse(m.Groups[1].Value);
-            // Strip trailing set/collector annotations like "(SNC) 123" or "(SNC)"
-            var cardName = Regex.Replace(m.Groups[2].Value.Trim(), @"\s*\([A-Z0-9]{2,5}\)\s*\d*$", "").Trim();
+            var rest = m.Groups[2].Value.Trim();
+
+            // Extract trailing set/collector annotations like "(SNC) 123" or "(SNC)"
+            string? setCode = null;
+            string? collectorNumber = null;
+            var setMatch = Regex.Match(rest, @"\s*\(([A-Z0-9]{2,5})\)\s*(\d+[a-z]?)?\s*$");
+            if (setMatch.Success)
+            {
+                setCode = setMatch.Groups[1].Value;
+                if (setMatch.Groups[2].Success)
+                    collectorNumber = setMatch.Groups[2].Value;
+                rest = rest[..setMatch.Index].Trim();
+            }
+            var cardName = rest;
 
             cards.Add(new ParsedCard(qty, cardName,
                 IsCommander: section == "Commander",
-                IsSideboard: section == "Sideboard"));
+                IsSideboard: section == "Sideboard",
+                SetCode: setCode,
+                CollectorNumber: collectorNumber));
         }
 
         return new ParseResult(name, format, cards, errors);

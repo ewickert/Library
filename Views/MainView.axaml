@@ -197,6 +197,9 @@
         <TabItem Header="Shopping">
           <views:ShoppingView DataContext="{Binding Shopping}" />
         </TabItem>
+        <TabItem Header="Games">
+          <views:GamesView DataContext="{Binding Games}" />
+        </TabItem>
       </TabControl>
 
     </DockPanel>

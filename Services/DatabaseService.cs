@@ -91,6 +91,23 @@ public class DatabaseService
                 Added TEXT NOT NULL DEFAULT (datetime('now')),
                 PlaceholderCardId INTEGER
             );
+
+            CREATE TABLE IF NOT EXISTS Games (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                PlayedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                TurnEnded INTEGER,
+                Notes TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS GamePlayers (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                GameId INTEGER NOT NULL REFERENCES Games(Id) ON DELETE CASCADE,
+                PlayerName TEXT NOT NULL DEFAULT '',
+                IsMe INTEGER NOT NULL DEFAULT 0,
+                DeckId INTEGER REFERENCES Decks(Id) ON DELETE SET NULL,
+                DeckName TEXT,
+                FinishPosition INTEGER NOT NULL DEFAULT 1
+            );
             """;
         cmd.ExecuteNonQuery();
 
@@ -157,6 +174,41 @@ public class DatabaseService
             LIMIT 1
             """;
         cmd.Parameters.AddWithValue("$name", name);
+        using var reader = cmd.ExecuteReader();
+        return reader.Read() ? ReadCard(reader) : null;
+    }
+
+    public Card? GetCardBySetAndCollector(string name, string setCode, string? collectorNumber)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        if (!string.IsNullOrWhiteSpace(collectorNumber))
+        {
+            cmd.CommandText = """
+                SELECT * FROM Cards
+                WHERE Name = $name COLLATE NOCASE
+                  AND SetCode = $set COLLATE NOCASE
+                  AND CollectorNumber = $cn COLLATE NOCASE
+                  AND (IsPlaceholder = 0 OR IsPlaceholder IS NULL)
+                ORDER BY Id LIMIT 1
+                """;
+            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$set", setCode);
+            cmd.Parameters.AddWithValue("$cn", collectorNumber);
+        }
+        else
+        {
+            cmd.CommandText = """
+                SELECT * FROM Cards
+                WHERE Name = $name COLLATE NOCASE
+                  AND SetCode = $set COLLATE NOCASE
+                  AND (IsPlaceholder = 0 OR IsPlaceholder IS NULL)
+                ORDER BY Id LIMIT 1
+                """;
+            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$set", setCode);
+        }
         using var reader = cmd.ExecuteReader();
         return reader.Read() ? ReadCard(reader) : null;
     }
@@ -888,5 +940,190 @@ public class DatabaseService
         Name = r.GetString(r.GetOrdinal("Name")),
         Description = r.IsDBNull(r.GetOrdinal("Description")) ? null : r.GetString(r.GetOrdinal("Description")),
         Created = DateTime.Parse(r.GetString(r.GetOrdinal("Created")))
+    };
+
+    // --- Games ---
+
+    public int AddGame(Game game)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
+        int gameId;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO Games (PlayedAt, TurnEnded, Notes)
+                VALUES ($playedAt, $turnEnded, $notes);
+                SELECT last_insert_rowid();
+                """;
+            cmd.Parameters.AddWithValue("$playedAt", game.PlayedAt.ToString("o"));
+            cmd.Parameters.AddWithValue("$turnEnded", (object?)game.TurnEnded ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$notes", (object?)game.Notes ?? DBNull.Value);
+            gameId = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        foreach (var p in game.Players)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO GamePlayers (GameId, PlayerName, IsMe, DeckId, DeckName, FinishPosition)
+                VALUES ($gameId, $name, $isMe, $deckId, $deckName, $pos)
+                """;
+            cmd.Parameters.AddWithValue("$gameId", gameId);
+            cmd.Parameters.AddWithValue("$name", p.PlayerName);
+            cmd.Parameters.AddWithValue("$isMe", p.IsMe ? 1 : 0);
+            cmd.Parameters.AddWithValue("$deckId", (object?)p.DeckId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$deckName", (object?)p.DeckName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$pos", p.FinishPosition);
+            cmd.ExecuteNonQuery();
+        }
+
+        tx.Commit();
+        return gameId;
+    }
+
+    public List<Game> GetAllGames()
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        var games = new List<Game>();
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT * FROM Games ORDER BY PlayedAt DESC";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) games.Add(ReadGame(r));
+        }
+
+        foreach (var game in games)
+            game.Players = GetGamePlayers(conn, game.Id);
+
+        return games;
+    }
+
+    public List<Game> GetGamesForDeck(int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        var games = new List<Game>();
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = """
+                SELECT DISTINCT g.* FROM Games g
+                JOIN GamePlayers gp ON gp.GameId = g.Id
+                WHERE gp.DeckId = $deckId
+                ORDER BY g.PlayedAt DESC
+                """;
+            cmd.Parameters.AddWithValue("$deckId", deckId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) games.Add(ReadGame(r));
+        }
+
+        foreach (var game in games)
+            game.Players = GetGamePlayers(conn, game.Id);
+
+        return games;
+    }
+
+    public void DeleteGame(int id)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM Games WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Returns win/loss stats for a deck (games where my player used this deck).</summary>
+    public (int Wins, int Losses, double? AvgWinTurn, double? AvgLossTurn) GetDeckGameStats(int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT gp.FinishPosition, g.TurnEnded
+            FROM GamePlayers gp
+            JOIN Games g ON g.Id = gp.GameId
+            WHERE gp.DeckId = $deckId AND gp.IsMe = 1
+            """;
+        cmd.Parameters.AddWithValue("$deckId", deckId);
+
+        int wins = 0, losses = 0;
+        var winTurns = new List<int>();
+        var lossTurns = new List<int>();
+
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            var pos = r.GetInt32(r.GetOrdinal("FinishPosition"));
+            var turnNull = r.IsDBNull(r.GetOrdinal("TurnEnded"));
+            var turn = turnNull ? (int?)null : r.GetInt32(r.GetOrdinal("TurnEnded"));
+
+            if (pos == 1)
+            {
+                wins++;
+                if (turn.HasValue) winTurns.Add(turn.Value);
+            }
+            else
+            {
+                losses++;
+                if (turn.HasValue) lossTurns.Add(turn.Value);
+            }
+        }
+
+        double? avgWin = winTurns.Count > 0 ? winTurns.Average() : null;
+        double? avgLoss = lossTurns.Count > 0 ? lossTurns.Average() : null;
+        return (wins, losses, avgWin, avgLoss);
+    }
+
+    private static List<GamePlayer> GetGamePlayers(SqliteConnection conn, int gameId)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT gp.*, d.Name AS LinkedDeckName
+            FROM GamePlayers gp
+            LEFT JOIN Decks d ON d.Id = gp.DeckId
+            WHERE gp.GameId = $gameId
+            ORDER BY gp.FinishPosition
+            """;
+        cmd.Parameters.AddWithValue("$gameId", gameId);
+        using var r = cmd.ExecuteReader();
+        var players = new List<GamePlayer>();
+        while (r.Read())
+        {
+            var deckIdOrd = r.GetOrdinal("DeckId");
+            var deckId = r.IsDBNull(deckIdOrd) ? (int?)null : r.GetInt32(deckIdOrd);
+            var linkedNameOrd = r.GetOrdinal("LinkedDeckName");
+            var linkedName = r.IsDBNull(linkedNameOrd) ? null : r.GetString(linkedNameOrd);
+            var deckNameOrd = r.GetOrdinal("DeckName");
+            var deckName = r.IsDBNull(deckNameOrd) ? null : r.GetString(deckNameOrd);
+
+            players.Add(new GamePlayer
+            {
+                Id = r.GetInt32(r.GetOrdinal("Id")),
+                GameId = gameId,
+                PlayerName = r.GetString(r.GetOrdinal("PlayerName")),
+                IsMe = r.GetInt32(r.GetOrdinal("IsMe")) == 1,
+                DeckId = deckId,
+                DeckName = linkedName ?? deckName,
+                FinishPosition = r.GetInt32(r.GetOrdinal("FinishPosition")),
+                Deck = deckId.HasValue && linkedName != null ? new Models.Deck { Id = deckId.Value, Name = linkedName } : null
+            });
+        }
+        return players;
+    }
+
+    private static Game ReadGame(SqliteDataReader r) => new()
+    {
+        Id = r.GetInt32(r.GetOrdinal("Id")),
+        PlayedAt = DateTime.Parse(r.GetString(r.GetOrdinal("PlayedAt"))),
+        TurnEnded = r.IsDBNull(r.GetOrdinal("TurnEnded")) ? null : r.GetInt32(r.GetOrdinal("TurnEnded")),
+        Notes = r.IsDBNull(r.GetOrdinal("Notes")) ? null : r.GetString(r.GetOrdinal("Notes"))
     };
 }

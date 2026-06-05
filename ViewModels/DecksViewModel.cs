@@ -257,7 +257,10 @@ public partial class DecksViewModel : ObservableObject
         var notFound = new List<string>();
         foreach (var pc in result.Cards)
         {
-            var card = _db.GetCardByName(pc.Name);
+            Card? card = null;
+            if (!string.IsNullOrWhiteSpace(pc.SetCode))
+                card = _db.GetCardBySetAndCollector(pc.Name, pc.SetCode, pc.CollectorNumber);
+            card ??= _db.GetCardByName(pc.Name);
             if (card == null) { notFound.Add(pc.Name); continue; }
             _db.AddCardToDeck(deckId, card.Id, pc.Quantity, pc.IsSideboard, pc.IsCommander);
         }
@@ -313,6 +316,16 @@ public partial class DecksViewModel : ObservableObject
     [ObservableProperty] private string _meanTurnsToFirstLandMissText = "-";
     [ObservableProperty] private string _meanLandsInFirstHandText = "-";
     [ObservableProperty] private string _deckTotalPriceText = "$0.00";
+
+    // ── Game performance stats ─────────────────────────────────────────────────
+    [ObservableProperty] private int _deckGameWins;
+    [ObservableProperty] private int _deckGameLosses;
+    [ObservableProperty] private string _deckGameWinRateText = "—";
+    [ObservableProperty] private string _deckAvgWinTurnText = "—";
+    [ObservableProperty] private string _deckAvgLossTurnText = "—";
+    public int DeckGameTotal => DeckGameWins + DeckGameLosses;
+    partial void OnDeckGameWinsChanged(int v)   => OnPropertyChanged(nameof(DeckGameTotal));
+    partial void OnDeckGameLossesChanged(int v) => OnPropertyChanged(nameof(DeckGameTotal));
 
     public bool HasActiveDeckColorFilter => !string.IsNullOrWhiteSpace(ActiveDeckColorFilter);
     public string ActiveDeckColorFilterText => ActiveDeckColorFilter ?? "None";
@@ -399,6 +412,7 @@ public partial class DecksViewModel : ObservableObject
             ApplyDeckColorFilter();
             RefreshCollectionFilter();
             RecomputeDeckStats();
+            ReloadDeckGameStats(null);
             return;
         }
 
@@ -409,6 +423,7 @@ public partial class DecksViewModel : ObservableObject
             ApplyDeckColorFilter();
             RefreshCollectionFilter();
             RecomputeDeckStats();
+            ReloadDeckGameStats(null);
             return;
         }
 
@@ -426,6 +441,29 @@ public partial class DecksViewModel : ObservableObject
 
         RefreshCollectionFilter();
         RecomputeDeckStats();
+        ReloadDeckGameStats(value?.Id);
+    }
+
+    private void ReloadDeckGameStats(int? deckId)
+    {
+        if (deckId == null)
+        {
+            DeckGameWins = 0;
+            DeckGameLosses = 0;
+            DeckGameWinRateText = "—";
+            DeckAvgWinTurnText = "—";
+            DeckAvgLossTurnText = "—";
+            return;
+        }
+        var (wins, losses, avgWin, avgLoss) = _db.GetDeckGameStats(deckId.Value);
+        DeckGameWins = wins;
+        DeckGameLosses = losses;
+        var total = wins + losses;
+        DeckGameWinRateText = total > 0
+            ? $"{wins * 100.0 / total:0.#}%"
+            : "—";
+        DeckAvgWinTurnText  = avgWin.HasValue  ? avgWin.Value.ToString("0.#",  System.Globalization.CultureInfo.InvariantCulture) : "—";
+        DeckAvgLossTurnText = avgLoss.HasValue ? avgLoss.Value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "—";
     }
 
     private List<DeckCard> _allDeckCards = new();

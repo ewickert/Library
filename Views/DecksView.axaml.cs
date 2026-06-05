@@ -184,6 +184,7 @@ public partial class DecksView : UserControl
 
         // Zoom with Ctrl+Wheel on the deck grid
         DeckGridScrollViewer.AddHandler(PointerWheelChangedEvent, OnDeckGridWheel, RoutingStrategies.Tunnel);
+        DeckListDataGrid.SelectionChanged += OnDeckListSelectionChanged;
 
         // Drag sources — tunnel so we get the press before inner controls (buttons etc.)
         CollectionPane.ListPane.AddHandler(PointerPressedEvent, OnCollectionPointerPressed, RoutingStrategies.Tunnel);
@@ -342,6 +343,13 @@ public partial class DecksView : UserControl
         _pendingDragSource = DragSourceKind.None;
         _dragStart = null;
         DragOverlay.IsVisible = false;
+    }
+
+    private void OnDeckListSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (DataContext is not DecksViewModel vm) return;
+        if (DeckListDataGrid.SelectedItem is DeckCard deckCard && deckCard.Card != null)
+            vm.OpenCardDetailCommand.Execute(deckCard.Card);
     }
 
     private void OnDeckPanePointerMoved(object? sender, PointerEventArgs e)

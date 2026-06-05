@@ -221,7 +221,8 @@
       <!-- List / Grid area -->
       <Panel Grid.Row="4">
         <!-- List view -->
-        <DataGrid ItemsSource="{Binding DeckCards}"
+        <DataGrid x:Name="DeckListDataGrid"
+                  ItemsSource="{Binding DeckCards}"
                   IsReadOnly="True"
                   AutoGenerateColumns="False"
                   GridLinesVisibility="Horizontal"

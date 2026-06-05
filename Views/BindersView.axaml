@@ -5,14 +5,14 @@
              x:Class="Library.Views.BindersView"
              x:DataType="vm:BindersViewModel">
 
-  <Grid>
+  <Grid x:Name="RootGrid">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="0.26*" MinWidth="150" MaxWidth="280" />
       <ColumnDefinition Width="*" MinWidth="260" />
     </Grid.ColumnDefinitions>
 
     <!-- Binder list sidebar -->
-    <DockPanel Grid.Column="0" Margin="8,8,4,8">
+    <DockPanel x:Name="BinderListPane" Grid.Column="0" Margin="8,8,4,8">
       <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,8">
         <TextBlock Text="Binders" FontWeight="Bold" FontSize="14" />
         <Button Content="+ New Binder" Command="{Binding StartCreateBinderCommand}" HorizontalAlignment="Stretch" />
@@ -44,7 +44,7 @@
     </DockPanel>
 
     <!-- Binder detail -->
-    <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="4,8,8,8">
+    <Grid x:Name="BinderDetailPane" Grid.Column="1" RowDefinitions="Auto,*" Margin="4,8,8,8">
 
       <!-- Header toolbar -->
       <ScrollViewer Grid.Row="0"
@@ -53,6 +53,12 @@
                     Margin="0,0,0,8"
                     IsVisible="{Binding SelectedBinder, Converter={x:Static ObjectConverters.IsNotNull}}">
         <StackPanel Orientation="Horizontal" Spacing="8">
+          <Button x:Name="CompactBackToBindersButton"
+                  Content="← Binders"
+                  Click="OnCompactBackToBindersClick"
+                  IsVisible="False"
+                  VerticalAlignment="Center"
+                  Padding="8,4" />
           <TextBlock Text="{Binding SelectedBinder.Name}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
           <TextBox Text="{Binding SearchText}" Watermark="Search cards…" Width="180" />
           <Button Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"

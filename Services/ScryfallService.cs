@@ -30,6 +30,11 @@ public class ScryfallService
     }
 
     private readonly string _cacheDir;
+    private readonly string _jsonCacheDir;
+
+    // In-memory JSON cache — avoids a second API hit when image + text are fetched for the same card
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string>
+        _jsonCache = new(StringComparer.Ordinal);
 
     public ScryfallService()
     {
@@ -37,7 +42,39 @@ public class ScryfallService
         _cacheDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MagicLibrary", "ImageCache");
+        _jsonCacheDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MagicLibrary", "CardCache");
         Directory.CreateDirectory(_cacheDir);
+        Directory.CreateDirectory(_jsonCacheDir);
+    }
+
+    /// <summary>
+    /// Returns the raw Scryfall JSON for a card by ID.
+    /// Results are cached in memory and on disk so concurrent callers (image + text) share one API hit.
+    /// </summary>
+    private async Task<string?> GetCardJsonAsync(string scryfallId, CancellationToken ct)
+    {
+        if (_jsonCache.TryGetValue(scryfallId, out var cached)) return cached;
+
+        var diskPath = Path.Combine(_jsonCacheDir, $"{scryfallId}.json");
+        if (File.Exists(diskPath))
+        {
+            try
+            {
+                var disk = await File.ReadAllTextAsync(diskPath, ct);
+                _jsonCache[scryfallId] = disk;
+                return disk;
+            }
+            catch { }
+        }
+
+        var json = await ApiGetAsync($"cards/{scryfallId}", ct);
+        if (json == null) return null;
+
+        _jsonCache[scryfallId] = json;
+        try { await File.WriteAllTextAsync(diskPath, json, ct); } catch { }
+        return json;
     }
 
     public async Task<Bitmap?> GetCardImageAsync(string scryfallId, CancellationToken ct = default)
@@ -118,7 +155,7 @@ public class ScryfallService
     {
         try
         {
-            var json = await ApiGetAsync($"cards/{scryfallId}", ct);
+            var json = await GetCardJsonAsync(scryfallId, ct);
             if (json == null) return null;
             using var doc = JsonDocument.Parse(json);
             return ExtractImageUrl(doc.RootElement);
@@ -411,6 +448,48 @@ public class ScryfallService
     }
 
     /// <summary>
+    public async Task<CardTextData?> GetCardTextDataAsync(Models.Card card, CancellationToken ct = default)
+    {
+        try
+        {
+            string? json = null;
+            if (!string.IsNullOrEmpty(card.ScryfallId))
+                json = await GetCardJsonAsync(card.ScryfallId, ct);
+            else if (!string.IsNullOrEmpty(card.SetCode) && !string.IsNullOrEmpty(card.CollectorNumber))
+                json = await ApiGetAsync($"cards/{Uri.EscapeDataString(card.SetCode.ToLower())}/{Uri.EscapeDataString(card.CollectorNumber)}", ct);
+
+            if (json == null) return null;
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            string? oracleText = null;
+            string? power = null, toughness = null, loyalty = null, defense = null;
+
+            if (root.TryGetProperty("oracle_text", out var ot))
+                oracleText = ot.GetString();
+            else if (root.TryGetProperty("card_faces", out var faces) && faces.GetArrayLength() > 0)
+            {
+                // Double-faced: join both faces with a separator
+                var parts = new List<string>();
+                foreach (var face in faces.EnumerateArray())
+                {
+                    if (face.TryGetProperty("name", out var fn)) parts.Add($"[{fn.GetString()}]");
+                    if (face.TryGetProperty("oracle_text", out var fo)) parts.Add(fo.GetString() ?? string.Empty);
+                }
+                oracleText = string.Join("\n\n", parts.Where(p => p.Length > 0));
+            }
+
+            if (root.TryGetProperty("power", out var pw)) power = pw.GetString();
+            if (root.TryGetProperty("toughness", out var tg)) toughness = tg.GetString();
+            if (root.TryGetProperty("loyalty", out var ly)) loyalty = ly.GetString();
+            if (root.TryGetProperty("defense", out var df)) defense = df.GetString();
+
+            return new CardTextData(oracleText, power, toughness, loyalty, defense);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
     /// Returns the current USD market price for a card from Scryfall.
     /// Uses <c>prices.usd_foil</c> when <paramref name="foil"/> is true, otherwise <c>prices.usd</c>.
     /// Returns null when the price is not available.
@@ -508,3 +587,11 @@ public class ScryfallCardData
 public record ScryfallSearchResult(
     HashSet<string> ScryfallIds,
     HashSet<string> Names);
+
+/// <summary>Oracle text and P/T or loyalty for the card detail panel.</summary>
+public record CardTextData(
+    string? OracleText,
+    string? Power,
+    string? Toughness,
+    string? Loyalty,
+    string? Defense);

@@ -22,7 +22,17 @@ public partial class CollectionViewModel : ObservableObject
     public double TileHeight => Math.Round(224 * _gridZoom);
     partial void OnGridZoomChanged(double v) { OnPropertyChanged(nameof(TileWidth)); OnPropertyChanged(nameof(TileHeight)); Services.PreferencesService.Instance.CollectionGridZoom = v; }
 
-    partial void OnIsGridViewChanged(bool value) => Services.PreferencesService.Instance.CollectionIsGridView = value;
+    partial void OnIsGridViewChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CollectionViewModeIndex));
+        Services.PreferencesService.Instance.CollectionIsGridView = value;
+    }
+
+    public int CollectionViewModeIndex
+    {
+        get => IsGridView ? 1 : 0;
+        set => IsGridView = value == 1;
+    }
     [ObservableProperty] private ObservableCollection<CardSlotViewModel> _cardSlots = new();
     [ObservableProperty] private ObservableCollection<SetItem> _availableSets = new();
     [ObservableProperty] private SetItem? _selectedSetFilter;

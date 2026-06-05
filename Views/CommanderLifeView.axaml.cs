@@ -12,12 +12,16 @@ namespace Library.Views;
 
 public partial class CommanderLifeView : UserControl
 {
+    private const double PhoneBreakpoint = 820;
     private CommanderLifeViewModel? _subscribedVm;
+    private bool _isPhoneLayout;
 
     public CommanderLifeView()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        SizeChanged += OnSizeChanged;
+        UpdateResponsiveLayout(Bounds.Width);
     }
 
     private void OnDataContextChanged(object? sender, System.EventArgs e)
@@ -29,7 +33,30 @@ public partial class CommanderLifeView : UserControl
         if (_subscribedVm != null)
             _subscribedVm.PropertyChanged += OnVmPropertyChanged;
 
+        UpdateResponsiveLayout(Bounds.Width);
         RebuildPlayerRegions();
+    }
+
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateResponsiveLayout(e.NewSize.Width);
+    }
+
+    private void UpdateResponsiveLayout(double width)
+    {
+        var wasPhone = _isPhoneLayout;
+        _isPhoneLayout = width < PhoneBreakpoint;
+
+        TopControlsBorder.Margin = _isPhoneLayout ? new Thickness(6, 6, 6, 2) : new Thickness(8, 8, 8, 2);
+        TopControlsBorder.Padding = _isPhoneLayout ? new Thickness(6, 5) : new Thickness(8, 6);
+        TopControlsBorder.MaxWidth = _isPhoneLayout ? 340 : 440;
+
+        PlayerRegionsHost.Margin = _isPhoneLayout ? new Thickness(4) : new Thickness(8);
+        PlayerRegionsHost.RowSpacing = _isPhoneLayout ? 4 : 8;
+        PlayerRegionsHost.ColumnSpacing = _isPhoneLayout ? 4 : 8;
+
+        if (wasPhone != _isPhoneLayout)
+            RebuildPlayerRegions();
     }
 
     private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -51,7 +78,7 @@ public partial class CommanderLifeView : UserControl
             return;
 
         var players = vm.ActivePlayers;
-        var (columns, rows) = GetGridDimensions(players.Count);
+        var (columns, rows) = GetGridDimensions(players.Count, _isPhoneLayout);
 
         for (var c = 0; c < columns; c++)
             PlayerRegionsHost.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -61,20 +88,51 @@ public partial class CommanderLifeView : UserControl
 
         for (var i = 0; i < players.Count; i++)
         {
+            var column = i % columns;
+            var row = i / columns;
             var view = new CommanderLifePlayerView
             {
                 DataContext = players[i],
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
+                RenderTransformOrigin = RelativePoint.Center,
+                RenderTransform = new RotateTransform(GetOutwardAngle(column, row, columns, rows)),
             };
-            Grid.SetColumn(view, i % columns);
-            Grid.SetRow(view, i / columns);
+            Grid.SetColumn(view, column);
+            Grid.SetRow(view, row);
             PlayerRegionsHost.Children.Add(view);
         }
     }
 
-    private static (int Columns, int Rows) GetGridDimensions(int playerCount)
+    private static double GetOutwardAngle(int column, int row, int columns, int rows)
     {
+        var centerX = (columns - 1) / 2.0;
+        var centerY = (rows - 1) / 2.0;
+
+        var dx = column - centerX;
+        var dy = row - centerY;
+
+        if (Math.Abs(dx) < 0.001 && Math.Abs(dy) < 0.001)
+            return 0;
+
+        if (Math.Abs(dx) > Math.Abs(dy))
+            return dx < 0 ? -90 : 90;
+
+        return dy < 0 ? 180 : 0;
+    }
+
+    private static (int Columns, int Rows) GetGridDimensions(int playerCount, bool isPhone)
+    {
+        if (isPhone)
+            return playerCount switch
+            {
+                <= 1 => (1, 1),
+                2 => (1, 2),
+                3 => (1, 3),
+                4 => (2, 2),
+                _ => (2, 3),
+            };
+
         return playerCount switch
         {
             <= 1 => (1, 1),

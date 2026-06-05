@@ -6,106 +6,333 @@
              x:DataType="vm:MainWindowViewModel"
              Background="{DynamicResource ThemeBackgroundBrush}">
 
-  <DockPanel>
-    <Border DockPanel.Dock="Top"
-            Background="{DynamicResource ThemeSurfaceHighBrush}"
-            BorderBrush="{DynamicResource ThemeBorderBrush}"
-            BorderThickness="0,0,0,1"
-            Padding="14,0"
-            MinHeight="40"
-            IsVisible="{Binding !IsCommanderMode}">
-      <DockPanel LastChildFill="False">
-        <TextBlock DockPanel.Dock="Left"
-                   Text="MTG Library"
-                   FontWeight="SemiBold"
-                   FontSize="13"
-                   Foreground="{DynamicResource ThemeTextPrimaryBrush}"
-                   VerticalAlignment="Center" />
-        <StackPanel DockPanel.Dock="Right"
-                    Orientation="Horizontal"
-                    Spacing="8"
-                    VerticalAlignment="Center">
-          <TextBlock Text="Commander Players"
-                     FontSize="11"
-                     Opacity="0.6"
-                     Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+  <!--
+    Three layers stacked in a Panel (all fill full screen):
+      1. DockPanel  — header + TabControl (TabControl is the sole fill child)
+      2. Commander  — full-screen overlay when IsCommanderMode=true
+      3. Hamburger  — slide-up sheet overlay
+  -->
+  <Panel>
+
+    <!-- ── Layer 1: main tab UI ───────────────────────────────── -->
+    <DockPanel>
+
+      <!-- Desktop header — managed by code-behind on resize -->
+      <Border x:Name="DesktopHeader"
+              DockPanel.Dock="Top"
+              Background="{DynamicResource ThemeSurfaceHighBrush}"
+              BorderBrush="{DynamicResource ThemeBorderBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="14,0"
+              MinHeight="40">
+        <DockPanel LastChildFill="False">
+          <TextBlock DockPanel.Dock="Left"
+                     Text="MTG Library"
+                     FontWeight="SemiBold"
+                     FontSize="13"
+                     Foreground="{DynamicResource ThemeTextPrimaryBrush}"
                      VerticalAlignment="Center" />
-          <ComboBox ItemsSource="{Binding CommanderLife.PlayerCountOptions}"
-                    SelectedItem="{Binding CommanderLife.SelectedPlayerCount}"
-                    Width="70"
-                    Height="28"
-                    FontSize="12"
-                    VerticalContentAlignment="Center" />
-          <Button Content="Commander Mode"
-                  Command="{Binding EnterCommanderModeCommand}"
-                  Padding="10,4"
-                  Height="28" />
-          <Button Content="Import CSV"
-                  Command="{Binding ImportCsvCommand}"
-                  Padding="10,4"
-                  Height="28"
-                  IsVisible="{OnPlatform iOS=True, Android=True, Default=False}" />
-          <TextBlock Text="{Binding ImportStatus}"
-                     IsVisible="{Binding HasImportStatus}"
-                     FontSize="11"
-                     VerticalAlignment="Center"
-                     Margin="4,0,0,0"
-                     Foreground="{DynamicResource ThemeTextSecondaryBrush}" />
-          <TextBlock Text="Theme"
-                     FontSize="11"
-                     Opacity="0.6"
-                     Foreground="{DynamicResource ThemeTextSecondaryBrush}"
-                     VerticalAlignment="Center" />
-          <Border Background="#2A3E6A"
-                  BorderBrush="#5F9CFF"
-                  BorderThickness="1"
-                  CornerRadius="10"
-                  Padding="8,2"
-                  IsVisible="{Binding ShowIosThemeRecommendation}">
-            <TextBlock Text="{Binding IosThemeRecommendationText}"
-                       FontSize="10"
-                       FontWeight="SemiBold"
-                       Foreground="#DCEBFF"
+          <StackPanel DockPanel.Dock="Right"
+                      Orientation="Horizontal"
+                      Spacing="8"
+                      VerticalAlignment="Center">
+            <TextBlock Text="Commander Players"
+                       FontSize="11"
+                       Opacity="0.6"
+                       Foreground="{DynamicResource ThemeTextSecondaryBrush}"
                        VerticalAlignment="Center" />
-          </Border>
-          <ComboBox ItemsSource="{Binding AvailableThemes}"
-                    SelectedItem="{Binding CurrentTheme}"
-                    Width="130"
-                    Height="28"
-                    FontSize="12"
-                    VerticalContentAlignment="Center" />
-        </StackPanel>
-      </DockPanel>
-    </Border>
+            <ComboBox ItemsSource="{Binding CommanderLife.PlayerCountOptions}"
+                      SelectedItem="{Binding CommanderLife.SelectedPlayerCount}"
+                      Width="70" Height="28" FontSize="12"
+                      VerticalContentAlignment="Center" />
+            <Button Content="Commander Mode"
+                    Command="{Binding EnterCommanderModeCommand}"
+                    Padding="10,4" Height="28" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
 
-    <TabControl SelectedIndex="{Binding SelectedTabIndex}"
-                IsVisible="{Binding !IsCommanderMode}">
-      <TabItem Header="Collection">
-        <views:CollectionView DataContext="{Binding Collection}" />
-      </TabItem>
-      <TabItem Header="Decks">
-        <views:DecksView DataContext="{Binding Decks}" />
-      </TabItem>
-      <TabItem Header="Binders">
-        <views:BindersView DataContext="{Binding Binders}" />
-      </TabItem>
-      <TabItem Header="Shopping">
-        <views:ShoppingView DataContext="{Binding Shopping}" />
-      </TabItem>
-    </TabControl>
+      <!-- Status bar -->
+      <Border x:Name="StatusBar"
+              DockPanel.Dock="Bottom"
+              Background="{DynamicResource ThemeSurfaceHighBrush}"
+              BorderBrush="{DynamicResource ThemeBorderBrush}"
+              BorderThickness="0,1,0,0"
+              Height="28">
+        <Grid ColumnDefinitions="*,Auto" Margin="10,0">
+          <TextBlock Grid.Column="0"
+                     Text="{Binding ImportStatus}"
+                     IsVisible="{Binding HasImportStatus}"
+                     FontSize="11" Opacity="0.65"
+                     Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+                     VerticalAlignment="Center" />
+          <Button Grid.Column="1"
+                  Height="22" Width="28"
+                  FontSize="13"
+                  Padding="0"
+                  HorizontalContentAlignment="Center"
+                  VerticalAlignment="Center"
+                  ToolTip.Tip="Settings">
+            <Button.Content>⚙</Button.Content>
+            <Button.Flyout>
+              <Flyout Placement="TopEdgeAlignedRight">
+                <StackPanel Width="280" Spacing="14" Margin="14,12,14,14">
 
-    <Grid IsVisible="{Binding IsCommanderMode}">
+                  <!-- Appearance -->
+                  <TextBlock Text="Appearance"
+                             FontWeight="SemiBold" FontSize="13"
+                             Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
+
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Theme"
+                               FontSize="12"
+                               Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding AvailableThemes}"
+                              SelectedItem="{Binding CurrentTheme}"
+                              Width="150" Height="30" FontSize="12"
+                              VerticalContentAlignment="Center" />
+                  </Grid>
+
+                  <Border Background="#2A3E6A"
+                          BorderBrush="#5F9CFF" BorderThickness="1"
+                          CornerRadius="6" Padding="8,5"
+                          IsVisible="{Binding ShowIosThemeRecommendation}">
+                    <TextBlock Text="{Binding IosThemeRecommendationText}"
+                               FontSize="11" FontWeight="SemiBold"
+                               Foreground="#DCEBFF" />
+                  </Border>
+
+                  <Border Height="1"
+                          Background="{DynamicResource ThemeBorderBrush}"
+                          Margin="-14,0" />
+
+                  <!-- Default Views -->
+                  <TextBlock Text="Default Views"
+                             FontWeight="SemiBold" FontSize="13"
+                             Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
+
+                  <TextBlock Text="These set the starting view mode for each section."
+                             FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                             Foreground="{DynamicResource ThemeTextSecondaryBrush}" />
+
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Decks"
+                               FontSize="12"
+                               Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1"
+                              SelectedIndex="{Binding Decks.DeckViewModeIndex}"
+                              Width="110" Height="30" FontSize="12"
+                              VerticalContentAlignment="Center">
+                      <ComboBoxItem Content="List" />
+                      <ComboBoxItem Content="Grid" />
+                      <ComboBoxItem Content="Sorted" />
+                    </ComboBox>
+                  </Grid>
+
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Collection"
+                               FontSize="12"
+                               Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+                               VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="1"
+                              SelectedIndex="{Binding Collection.CollectionViewModeIndex}"
+                              Width="110" Height="30" FontSize="12"
+                              VerticalContentAlignment="Center">
+                      <ComboBoxItem Content="List" />
+                      <ComboBoxItem Content="Grid" />
+                    </ComboBox>
+                  </Grid>
+
+                </StackPanel>
+              </Flyout>
+            </Button.Flyout>
+          </Button>
+        </Grid>
+      </Border>
+
+      <!-- Mobile header: title + hamburger — managed by code-behind -->
+      <Border x:Name="MobileHeader"
+              DockPanel.Dock="Top"
+              Background="{DynamicResource ThemeSurfaceHighBrush}"
+              BorderBrush="{DynamicResource ThemeBorderBrush}"
+              BorderThickness="0,0,0,1"
+              Padding="16,0"
+              MinHeight="52"
+              IsVisible="False">
+        <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+          <TextBlock Grid.Column="0"
+                     Text="MTG Library"
+                     FontWeight="SemiBold" FontSize="17"
+                     Foreground="{DynamicResource ThemeTextPrimaryBrush}"
+                     VerticalAlignment="Center" />
+          <Button Grid.Column="1"
+                  Content="☰"
+                  Padding="14,0" Height="44" FontSize="22"
+                  Click="OnHamburgerClick" />
+        </Grid>
+      </Border>
+
+      <!-- Tab content — sole fill child of this DockPanel -->
+      <TabControl x:Name="MainTabControl"
+                  SelectedIndex="{Binding SelectedTabIndex}">
+        <TabControl.Styles>
+          <Style Selector="TabItem">
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="FontSize" Value="13" />
+          </Style>
+        </TabControl.Styles>
+        <TabItem Header="Collection">
+          <views:CollectionView DataContext="{Binding Collection}" />
+        </TabItem>
+        <TabItem Header="Decks">
+          <views:DecksView DataContext="{Binding Decks}" />
+        </TabItem>
+        <TabItem Header="Binders">
+          <views:BindersView DataContext="{Binding Binders}" />
+        </TabItem>
+        <TabItem Header="Shopping">
+          <views:ShoppingView DataContext="{Binding Shopping}" />
+        </TabItem>
+      </TabControl>
+
+    </DockPanel>
+
+    <!-- ── Layer 2: commander full-screen overlay ─────────────── -->
+    <Panel x:Name="CommanderLayer" IsVisible="False">
       <views:CommanderLifeView DataContext="{Binding CommanderLife}" />
       <Button Content="← Back"
               Command="{Binding ExitCommanderModeCommand}"
               HorizontalAlignment="Left"
               VerticalAlignment="Top"
               Margin="12"
-              Padding="12,6"
-              FontSize="14"
-              FontWeight="SemiBold"
-              Background="#AA000000"
-              Foreground="White" />
-    </Grid>
-  </DockPanel>
+              Padding="16,10"
+              FontSize="15" FontWeight="SemiBold"
+              Background="#AA000000" Foreground="White" />
+    </Panel>
+
+    <!-- ── Layer 3: hamburger menu overlay ────────────────────── -->
+    <Panel x:Name="HamburgerOverlay" IsVisible="False">
+
+      <!-- Scrim -->
+      <Border Background="#88000000"
+              PointerPressed="OnHamburgerScrimPressed" />
+
+      <!-- Sheet anchored to bottom -->
+      <Border VerticalAlignment="Bottom"
+              Background="{DynamicResource ThemeSurfaceHighBrush}"
+              CornerRadius="18,18,0,0"
+              Padding="20,18,20,36"
+              BorderBrush="{DynamicResource ThemeBorderBrush}"
+              BorderThickness="0,1,0,0">
+        <StackPanel Spacing="16">
+
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0"
+                       Text="Menu"
+                       FontWeight="SemiBold" FontSize="18"
+                       Foreground="{DynamicResource ThemeTextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1"
+                    Content="Done"
+                    Padding="20,0" Height="38"
+                    FontSize="14" FontWeight="SemiBold"
+                    Click="OnHamburgerCloseClick" />
+          </Grid>
+
+          <Border Height="1" Background="{DynamicResource ThemeBorderBrush}" Margin="-20,0" />
+
+          <Button Content="Commander Mode"
+                  Command="{Binding EnterCommanderModeCommand}"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Height="50" FontSize="16" FontWeight="SemiBold"
+                  Click="OnHamburgerActionClick" />
+
+          <Button Content="Import CSV"
+                  Command="{Binding ImportCsvCommand}"
+                  HorizontalAlignment="Stretch"
+                  HorizontalContentAlignment="Center"
+                  Height="46" FontSize="15"
+                  Click="OnHamburgerActionClick" />
+
+          <Border Height="1" Background="{DynamicResource ThemeBorderBrush}" Margin="-20,0" />
+
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0"
+                       Text="Commander Players"
+                       FontSize="15"
+                       Foreground="{DynamicResource ThemeTextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      ItemsSource="{Binding CommanderLife.PlayerCountOptions}"
+                      SelectedItem="{Binding CommanderLife.SelectedPlayerCount}"
+                      Width="90" Height="42" FontSize="15"
+                      VerticalContentAlignment="Center" />
+          </Grid>
+
+          <Border Height="1" Background="{DynamicResource ThemeBorderBrush}" Margin="-20,0" />
+
+          <!-- Settings section -->
+          <TextBlock Text="Settings"
+                     FontWeight="SemiBold" FontSize="16"
+                     Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
+
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0"
+                       Text="Theme"
+                       FontSize="15"
+                       Foreground="{DynamicResource ThemeTextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      ItemsSource="{Binding AvailableThemes}"
+                      SelectedItem="{Binding CurrentTheme}"
+                      Width="170" Height="42" FontSize="15"
+                      VerticalContentAlignment="Center" />
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0"
+                       Text="Decks view"
+                       FontSize="15"
+                       Foreground="{DynamicResource ThemeTextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      SelectedIndex="{Binding Decks.DeckViewModeIndex}"
+                      Width="170" Height="42" FontSize="15"
+                      VerticalContentAlignment="Center">
+              <ComboBoxItem Content="List" />
+              <ComboBoxItem Content="Grid" />
+              <ComboBoxItem Content="Sorted" />
+            </ComboBox>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock Grid.Column="0"
+                       Text="Collection view"
+                       FontSize="15"
+                       Foreground="{DynamicResource ThemeTextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1"
+                      SelectedIndex="{Binding Collection.CollectionViewModeIndex}"
+                      Width="170" Height="42" FontSize="15"
+                      VerticalContentAlignment="Center">
+              <ComboBoxItem Content="List" />
+              <ComboBoxItem Content="Grid" />
+            </ComboBox>
+          </Grid>
+
+          <TextBlock Text="{Binding ImportStatus}"
+                     IsVisible="{Binding HasImportStatus}"
+                     FontSize="13" Opacity="0.7"
+                     Foreground="{DynamicResource ThemeTextSecondaryBrush}" />
+
+        </StackPanel>
+      </Border>
+    </Panel>
+
+  </Panel>
 </UserControl>

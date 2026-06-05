@@ -2,12 +2,17 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Library.Services;
+using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace Library.Views.Controls;
 
-/// <summary>Renders a mana cost string like "{2}{W}{B}" as a row of colored symbol badges.</summary>
+/// <summary>
+/// Renders a mana cost string like "{2}{W}{B}" as a row of symbol images (SVG when available,
+/// colored text badges otherwise).
+/// </summary>
 public partial class ManaSymbolsControl : UserControl
 {
     public static readonly StyledProperty<string?> ManaCostProperty =
@@ -32,6 +37,19 @@ public partial class ManaSymbolsControl : UserControl
         Padding = new Thickness(0);
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        SymbolService.Instance.SymbolsUpdated += OnSymbolsUpdated;
+        Rebuild(ManaCost);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        SymbolService.Instance.SymbolsUpdated -= OnSymbolsUpdated;
+    }
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -39,13 +57,37 @@ public partial class ManaSymbolsControl : UserControl
             Rebuild(change.GetNewValue<string?>());
     }
 
+    private void OnSymbolsUpdated(object? sender, EventArgs e) =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => Rebuild(ManaCost));
+
     private void Rebuild(string? manaCost)
     {
         _panel.Children.Clear();
         if (string.IsNullOrWhiteSpace(manaCost)) return;
 
-        foreach (var sym in ParseSymbols(manaCost))
-            _panel.Children.Add(MakeBadge(sym));
+        foreach (var code in ParseSymbols(manaCost))
+            _panel.Children.Add(MakeSymbol(code));
+    }
+
+    private static Control MakeSymbol(string code)
+    {
+        var img = SymbolService.Instance.TryGet($"{{{code}}}");
+        if (img != null)
+        {
+            return new Image
+            {
+                Source = img,
+                Width = 16,
+                Height = 16,
+                Stretch = Stretch.Uniform,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(1, 0),
+                [ToolTip.TipProperty] = $"{{{code}}}",
+            };
+        }
+
+        // Fallback: colored circle badge until SVGs are loaded
+        return MakeBadge(MapSymbol(code));
     }
 
     private static Border MakeBadge((string text, Color bg, Color fg) sym) => new()
@@ -70,11 +112,11 @@ public partial class ManaSymbolsControl : UserControl
     [GeneratedRegex(@"\{([^}]+)\}")]
     private static partial Regex SymbolRegex();
 
-    private static List<(string text, Color bg, Color fg)> ParseSymbols(string cost)
+    private static List<string> ParseSymbols(string cost)
     {
-        var result = new List<(string, Color, Color)>();
+        var result = new List<string>();
         foreach (Match m in SymbolRegex().Matches(cost))
-            result.Add(MapSymbol(m.Groups[1].Value.ToUpperInvariant()));
+            result.Add(m.Groups[1].Value.ToUpperInvariant());
         return result;
     }
 
@@ -100,10 +142,8 @@ public partial class ManaSymbolsControl : UserControl
 
     private static (string text, Color bg, Color fg) HybridSymbol(string code)
     {
-        // e.g. "W/U", "2/W", "W/P" — colour from the first meaningful part
         var parts = code.Split('/');
-        var first = parts[0];
-        var (_, bg, fg) = MapSymbol(first);
+        var (_, bg, fg) = MapSymbol(parts[0]);
         var label = parts[0].Length > 0 ? parts[0][0].ToString() : "?";
         return (label, bg, fg);
     }

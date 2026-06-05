@@ -41,6 +41,7 @@ public partial class App : Application
             // On mobile we currently don't show the printing picker window.
             // Use the tapped result directly so "Add" and "Want" actions still work.
             ScryfallResultViewModel.GlobalPickPrintingAsync = data => Task.FromResult<ScryfallCardData?>(data);
+            SymbolService.Instance.BeginLoad();
 
             vm.RequestImportCsv = async () =>
             {
@@ -107,6 +108,8 @@ public partial class App : Application
             };
 
             singleView.MainView = mainView;
+
+
         }
 
         Library.Services.ThemeService.Instance.LoadSaved();

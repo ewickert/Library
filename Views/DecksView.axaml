@@ -4,6 +4,7 @@
              xmlns:models="using:Library.Models"
              xmlns:controls="using:Library.Views.Controls"
              xmlns:converters="using:Library.Views"
+             xmlns:views="using:Library.Views"
              x:Class="Library.Views.DecksView"
              x:DataType="vm:DecksViewModel">
 
@@ -56,12 +57,15 @@
   <!--
     Layout: [Deck Sidebar 220] | [Deck Content *] | [Collection Pane 290 (collapsible)]
   -->
-  <Grid>
+  <Panel>
+  <Grid x:Name="RootGrid">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="0.24*" MinWidth="140" MaxWidth="260" />
       <ColumnDefinition Width="*" MinWidth="200" />
       <ColumnDefinition Width="5" />
       <ColumnDefinition Width="0.34*" MinWidth="180" MaxWidth="340" />
+      <ColumnDefinition Width="0" />
+      <ColumnDefinition Width="0" MinWidth="0" />
     </Grid.ColumnDefinitions>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -112,10 +116,24 @@
     <!-- ══════════════════════════════════════════════════════════
          Col 1: Deck detail
          ══════════════════════════════════════════════════════════ -->
-    <Grid x:Name="DeckPane" Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="4,8,4,8">
+    <Grid x:Name="DeckPane" Grid.Column="1" RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="4,8,4,8">
+
+      <!-- Sidebar toggle — always visible -->
+      <Button Grid.Row="0"
+              Command="{Binding ToggleDeckSidebarCommand}"
+              HorizontalAlignment="Left"
+              Padding="6,3"
+              Margin="0,0,0,4"
+              FontSize="12">
+        <StackPanel Orientation="Horizontal" Spacing="3">
+          <TextBlock Text="◀" IsVisible="{Binding IsDeckSidebarOpen}" />
+          <TextBlock Text="▶" IsVisible="{Binding !IsDeckSidebarOpen}" />
+          <TextBlock Text="Decks" />
+        </StackPanel>
+      </Button>
 
       <!-- Header -->
-      <ScrollViewer Grid.Row="0"
+      <ScrollViewer Grid.Row="1"
                     HorizontalScrollBarVisibility="Auto"
                     VerticalScrollBarVisibility="Disabled"
                     Margin="0,0,0,4"
@@ -123,6 +141,12 @@
         <StackPanel Orientation="Horizontal" Spacing="8">
           <TextBlock Text="{Binding SelectedDeck.Name}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" />
           <TextBlock Text="{Binding SelectedDeck.Format}" Opacity="0.6" VerticalAlignment="Center" />
+          <!-- Card count badge -->
+          <Border CornerRadius="4" Padding="6,2" VerticalAlignment="Center"
+                  Background="{DynamicResource ThemeSurfaceVariantBrush}">
+            <TextBlock Text="{Binding DeckCountText}" FontSize="12" FontWeight="SemiBold"
+                       Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
+          </Border>
           <Button Command="{Binding ToggleViewCommand}" Padding="6,3">
             <StackPanel Orientation="Horizontal" Spacing="4">
               <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="12" />
@@ -140,13 +164,33 @@
                   ToolTip.Tip="Toggle collection pane">
             <TextBlock Text="📚 Collection" FontSize="12" />
           </Button>
+            <Button Command="{Binding ToggleStatsPaneCommand}" Padding="6,3"
+              ToolTip.Tip="Toggle deck stats pane"
+              IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <TextBlock Text="📈 Stats" FontSize="12" />
+            </Button>
           <Button Content="Delete Deck" Command="{Binding DeleteDeckCommand}"
                   Background="#CC3300" Foreground="White" />
         </StackPanel>
       </ScrollViewer>
 
+      <!-- Duplicate / over-limit warning banner -->
+      <Border Grid.Row="2"
+              IsVisible="{Binding DuplicateWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              Background="#442200" BorderBrush="#AA6633" BorderThickness="1"
+              CornerRadius="6" Padding="10,6" Margin="0,0,0,6">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding DuplicateWarning}"
+                     FontSize="12" TextWrapping="Wrap"
+                     Foreground="#FFCC88" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="✕"
+                  Command="{Binding ClearDuplicateWarningCommand}"
+                  Padding="6,2" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+
       <!-- Commander info bar (Commander format only) -->
-      <Border Grid.Row="1" Margin="0,0,0,6" Padding="8,6" CornerRadius="6"
+      <Border Grid.Row="3" Margin="0,0,0,6" Padding="8,6" CornerRadius="6"
               Background="{DynamicResource ThemeSurfaceBrush}"
               IsVisible="{Binding IsCommanderFormat}">
         <StackPanel Spacing="4">
@@ -175,7 +219,7 @@
       </Border>
 
       <!-- List / Grid area -->
-      <Panel Grid.Row="2">
+      <Panel Grid.Row="4">
         <!-- List view -->
         <DataGrid ItemsSource="{Binding DeckCards}"
                   IsReadOnly="True"
@@ -539,335 +583,169 @@
                   IsVisible="{Binding IsCollectionPaneOpen}" />
 
     <!-- ══════════════════════════════════════════════════════════
-         Col 3: Collection pane (collapsible)
+         Col 3: Collection pane (collapsible / pop-out)
          ══════════════════════════════════════════════════════════ -->
-    <Border x:Name="CollectionPaneRoot" Grid.Column="3" Margin="4,8,8,8"
+    <Border x:Name="CollectionPaneRoot" Grid.Column="3" Margin="{Binding SidePaneBottomMargin}"
             Background="{DynamicResource ThemeSurfaceBrush}"
             CornerRadius="8"
             IsVisible="{Binding IsCollectionPaneOpen}">
-      <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
-
-        <!-- Pane header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="10,8,10,4">
-          <TextBlock Text="Collection" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" />
-          <Border IsVisible="{Binding IsColorFiltered}"
-                  Background="#33FFD700" CornerRadius="4" Padding="4,2">
-            <TextBlock Text="CI filtered" FontSize="10" Foreground="#BB8800" />
-          </Border>
-          <Button Command="{Binding ToggleCollectionViewCommand}" Padding="6,2"
-                  ToolTip.Tip="Toggle grid/list view" FontSize="11">
-            <StackPanel Orientation="Horizontal" Spacing="3">
-              <TextBlock Text="⊞" IsVisible="{Binding !IsCollectionGridView}" FontSize="12" />
-              <TextBlock Text="☰" IsVisible="{Binding IsCollectionGridView}" FontSize="12" />
-            </StackPanel>
-          </Button>
-        </StackPanel>
-
-        <!-- Color identity filter buttons -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="5" Margin="8,0,8,6">
-          <ToggleButton Classes="colorBtn W" Content="W" IsChecked="{Binding FilterW}"
-                        ToolTip.Tip="White" />
-          <ToggleButton Classes="colorBtn U" Content="U" IsChecked="{Binding FilterU}"
-                        ToolTip.Tip="Blue" />
-          <ToggleButton Classes="colorBtn B" Content="B" IsChecked="{Binding FilterB}"
-                        ToolTip.Tip="Black" />
-          <ToggleButton Classes="colorBtn R" Content="R" IsChecked="{Binding FilterR}"
-                        ToolTip.Tip="Red" />
-          <ToggleButton Classes="colorBtn G" Content="G" IsChecked="{Binding FilterG}"
-                        ToolTip.Tip="Green" />
-          <ToggleButton Classes="colorBtn C" Content="C" IsChecked="{Binding FilterC}"
-                        ToolTip.Tip="Colorless" />
-        </StackPanel>
-
-        <!-- Mana cost + type filters -->
-        <Grid Grid.Row="2" ColumnDefinitions="*,*" Margin="8,0,8,4">
-          <TextBox Grid.Column="0" Text="{Binding CollectionManaCostFilter}"
-                   Watermark="{}{W}{U} mana…" Margin="0,0,3,0" FontSize="11" />
-          <TextBox Grid.Column="1" Text="{Binding CollectionTypeFilter}"
-                   Watermark="Type (Creature…)" Margin="3,0,0,0" FontSize="11" />
-        </Grid>
-
-        <!-- Name search + Scryfall toggle -->
-        <StackPanel Grid.Row="3" Spacing="4" Margin="8,0,8,6">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBox Grid.Column="0" Text="{Binding CollectionSearchText}" Watermark="Search cards…" />
-            <Button Grid.Column="1" Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"
-                    Padding="6,2" FontWeight="Bold" VerticalAlignment="Center" Margin="4,0,0,0" />
-          </Grid>
-          <StackPanel Orientation="Horizontal" Spacing="6">
-            <CheckBox Content="Search Scryfall" IsChecked="{Binding IsCollectionExternalSearch}"
-                      FontSize="11"
-                      ToolTip.Tip="Search Scryfall for cards not in your collection" />
-            <Button Content="🔍" Command="{Binding SearchCollectionExternalCommand}"
-                    IsVisible="{Binding IsCollectionExternalSearch}" Padding="6,2" FontSize="11" />
-            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsCollectionExternalSearching}"
-                         Width="60" Height="6" VerticalAlignment="Center" />
-          </StackPanel>
-        </StackPanel>
-
-        <!-- Card list view -->
-        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto"
-                      IsVisible="{Binding !IsCollectionExternalSearch}">
-          <Panel IsVisible="{Binding !IsCollectionGridView}">
-            <ItemsControl x:Name="CollectionListPane" ItemsSource="{Binding CollectionCards}"
-                          IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="models:Card">
-                  <Border Padding="8,5" BorderThickness="0,0,0,1"
-                          ToolTip.ShowDelay="300"
-                          BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-                    <ToolTip.Tip>
-                      <controls:CardImageControl Card="{Binding}" />
-                    </ToolTip.Tip>
-                    <Grid ColumnDefinitions="*,Auto">
-                      <StackPanel Grid.Column="0" Spacing="1">
-                        <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" />
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                          <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}"
-                              IsVisible="{Binding ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                          <TextBlock Text="|" FontSize="10" Opacity="0.3"
-                                     IsVisible="{Binding TypeLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                          <TextBlock Text="{Binding TypeLine}" FontSize="10" Opacity="0.6"
-                                     TextTrimming="CharacterEllipsis" MaxWidth="130"
-                                     IsVisible="{Binding TypeLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                          <TextBlock Text="{Binding SetCode}" FontSize="10" Opacity="0.5" />
-                          <TextBlock Text="{Binding ColorIdentity}" FontSize="10" Opacity="0.45"
-                                     IsVisible="{Binding ColorIdentity, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                        </StackPanel>
-                      </StackPanel>
-                      <Button Grid.Column="1"
-                              Content="+"
-                              ToolTip.Tip="Add to deck"
-                              Command="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).AddCardToDeckCommand}"
-                              CommandParameter="{Binding}"
-                              Padding="8,3" FontSize="14" FontWeight="Bold"
-                              VerticalAlignment="Center" />
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Text="Select a deck to add cards."
-                       IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNull}}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5"
-                       Margin="8" />
-          </Panel>
-        </ScrollViewer>
-
-        <!-- Card grid view -->
-        <ScrollViewer x:Name="CollectionGridScrollViewer" Grid.Row="4" VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      IsVisible="{Binding IsCollectionGridView}">
-          <Panel>
-            <ItemsControl x:Name="CollectionGridPane" ItemsSource="{Binding CollectionCardSlots}"
-                          IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:CardSlotViewModel">
-                  <Border Width="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).CollectionTileWidth}"
-                          Height="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).CollectionTileHeight}"
-                          CornerRadius="6" ClipToBounds="True" Margin="4"
-                          ToolTip.ShowDelay="200"
-                          Background="{DynamicResource ThemeSurfaceVariantBrush}">
-                    <ToolTip.Tip>
-                      <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
-                        <Panel>
-                          <Image Source="{Binding Image}" MaxWidth="280" MaxHeight="392" Stretch="Uniform"
-                                 IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                          <TextBlock Text="{Binding Card.Name}" Foreground="White" FontSize="13" FontWeight="Bold"
-                                     TextWrapping="Wrap" MaxWidth="268" Margin="4"
-                                     IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}" />
-                        </Panel>
-                      </Border>
-                    </ToolTip.Tip>
-                    <Panel>
-                      <Image Source="{Binding Image}" Stretch="UniformToFill"
-                             IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                                  IsVisible="{Binding IsLoading}" Spacing="4">
-                        <ProgressBar IsIndeterminate="True" Width="60" />
-                        <TextBlock Text="{Binding Card.Name}" FontSize="9" TextWrapping="Wrap"
-                                   HorizontalAlignment="Center" TextAlignment="Center" Opacity="0.6" MaxWidth="108" />
-                      </StackPanel>
-                      <Panel IsVisible="{Binding IsLoading, Converter={x:Static BoolConverters.Not}}">
-                        <Panel IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
-                          <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="🃏" FontSize="22" HorizontalAlignment="Center" />
-                            <TextBlock Text="{Binding Card.Name}" FontSize="9" TextWrapping="Wrap"
-                                       MaxWidth="108" HorizontalAlignment="Center" TextAlignment="Center" />
-                          </StackPanel>
-                        </Panel>
-                      </Panel>
-                      <!-- Add to deck button (always on top) -->
-                      <Button Content="+"
-                              ToolTip.Tip="Add to deck"
-                              Command="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).AddCardToDeckCommand}"
-                              CommandParameter="{Binding Card}"
-                              HorizontalAlignment="Right" VerticalAlignment="Top"
-                              Margin="2" Padding="4,1" FontSize="14" FontWeight="Bold"
-                              Opacity="0.85" />
-                      <Border Background="#AA000000" CornerRadius="0,0,6,6"
-                              VerticalAlignment="Bottom" Padding="4,2">
-                        <TextBlock Text="{Binding Card.Name}" FontSize="9" Foreground="White"
-                                   TextTrimming="CharacterEllipsis" />
-                      </Border>
-                    </Panel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Text="Select a deck to add cards."
-                       IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNull}}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5"
-                       Margin="8" />
-          </Panel>
-        </ScrollViewer>
-
-        <!-- External Scryfall results for collection pane -->
-        <Grid Grid.Row="4" RowDefinitions="Auto,*"
-              IsVisible="{Binding IsCollectionExternalSearch}" Margin="4,0">
-
-          <!-- toolbar -->
-          <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,2,0,4">
-            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsCollectionExternalSearching}"
-                         Width="60" Height="6" VerticalAlignment="Center" />
-            <Button Padding="4,2" FontSize="10"
-                    Command="{Binding ToggleCollectionExternalViewCommand}">
-              <Panel>
-                <TextBlock Text="⊞" IsVisible="{Binding !IsCollectionExternalGridView}" />
-                <TextBlock Text="☰" IsVisible="{Binding IsCollectionExternalGridView}" />
-              </Panel>
-            </Button>
-          </StackPanel>
-
-          <!-- List view -->
-          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
-                        IsVisible="{Binding !IsCollectionExternalGridView}">
-            <ItemsControl x:Name="ExternalResultsListView" ItemsSource="{Binding CollectionExternalResults}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:ScryfallResultViewModel">
-                  <Border Margin="0,2" Padding="8,5" CornerRadius="5"
-                          Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-                    <Grid ColumnDefinitions="*,Auto">
-                      <StackPanel Grid.Column="0" Spacing="1">
-                        <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" />
-                        <TextBlock FontSize="10" Opacity="0.7">
-                          <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding TypeLine}" />
-                        </TextBlock>
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                          <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}"
-                              IsVisible="{Binding ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                          <TextBlock Text="{Binding Rarity}" FontSize="10" Opacity="0.7" VerticalAlignment="Center" />
-                        </StackPanel>
-                      </StackPanel>
-                      <Button Grid.Column="1" Command="{Binding ToggleShoppingListCommand}"
-                              Padding="6,2" FontSize="11" VerticalAlignment="Center" Margin="4,0,0,0">
-                        <Panel>
-                          <TextBlock Text="+ Want It" IsVisible="{Binding !IsOnShoppingList}" />
-                          <TextBlock Text="✓ On List" IsVisible="{Binding IsOnShoppingList}" Foreground="LightGreen" />
-                        </Panel>
-                      </Button>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-
-          <!-- Grid view -->
-          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
-                        HorizontalScrollBarVisibility="Disabled"
-                        IsVisible="{Binding IsCollectionExternalGridView}">
-            <ItemsControl x:Name="ExternalResultsGridView" ItemsSource="{Binding CollectionExternalResults}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <WrapPanel Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:ScryfallResultViewModel">
-                  <Border Width="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).CollectionTileWidth}"
-                          Height="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).CollectionTileHeight}"
-                          CornerRadius="6" ClipToBounds="True" Margin="4"
-                          ToolTip.ShowDelay="200"
-                          Background="{DynamicResource ThemeSurfaceVariantBrush}">
-                    <ToolTip.Tip>
-                      <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
-                        <Panel>
-                          <Image Source="{Binding Image}" MaxWidth="280" MaxHeight="392" Stretch="Uniform"
-                                 IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                          <StackPanel Spacing="4" Margin="4"
-                                      IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
-                            <TextBlock Text="{Binding Name}" Foreground="White" FontSize="13" FontWeight="Bold"
-                                       TextWrapping="Wrap" MaxWidth="268" />
-                            <TextBlock Text="{Binding TypeLine}" Foreground="#CCCCCC" FontSize="11"
-                                       TextWrapping="Wrap" MaxWidth="268" />
-                            <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}" />
-                          </StackPanel>
-                        </Panel>
-                      </Border>
-                    </ToolTip.Tip>
-                    <Panel>
-                      <Image Source="{Binding Image}" Stretch="UniformToFill"
-                             IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                                  IsVisible="{Binding IsLoading}" Spacing="4">
-                        <ProgressBar IsIndeterminate="True" Width="60" />
-                        <TextBlock Text="{Binding Name}" FontSize="9" TextWrapping="Wrap"
-                                   HorizontalAlignment="Center" TextAlignment="Center" Opacity="0.6" MaxWidth="108" />
-                      </StackPanel>
-                      <Panel IsVisible="{Binding IsLoading, Converter={x:Static BoolConverters.Not}}">
-                        <Panel IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
-                          <StackPanel Spacing="3" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <TextBlock Text="🃏" FontSize="22" HorizontalAlignment="Center" />
-                            <TextBlock Text="{Binding Name}" FontSize="9" TextWrapping="Wrap"
-                                       MaxWidth="108" HorizontalAlignment="Center" TextAlignment="Center" />
-                          </StackPanel>
-                        </Panel>
-                      </Panel>
-                      <Button Command="{Binding ToggleShoppingListCommand}"
-                              HorizontalAlignment="Right" VerticalAlignment="Top"
-                              Margin="3" Padding="5,2" FontSize="10" FontWeight="Bold"
-                              CornerRadius="4">
-                        <Button.Styles>
-                          <Style Selector="Button">
-                            <Setter Property="Background" Value="#CC1A3A6C" />
-                            <Setter Property="Foreground" Value="White" />
-                          </Style>
-                          <Style Selector="Button:pointerover /template/ ContentPresenter">
-                            <Setter Property="Background" Value="#EE2244AA" />
-                          </Style>
-                        </Button.Styles>
-                        <Panel>
-                          <TextBlock Text="+ Want" IsVisible="{Binding !IsOnShoppingList}" />
-                          <TextBlock Text="✓" IsVisible="{Binding IsOnShoppingList}" Foreground="#90EE90" />
-                        </Panel>
-                      </Button>
-                      <Border Background="#AA000000" CornerRadius="0,0,6,6"
-                              VerticalAlignment="Bottom" Padding="4,2">
-                        <TextBlock Text="{Binding Name}" FontSize="9" Foreground="White"
-                                   TextTrimming="CharacterEllipsis" />
-                      </Border>
-                    </Panel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-
-        </Grid>
-
-      </Grid>
+      <views:CollectionPaneView x:Name="CollectionPane" />
     </Border>
 
-  <!-- Drag preview overlay (spans full view, sits on top, no hit testing) -->
-  <Canvas x:Name="DragOverlay" Grid.ColumnSpan="4" IsHitTestVisible="False" IsVisible="False">
+    <!-- Splitter between collection pane and stats pane -->
+    <GridSplitter Grid.Column="4"
+                  ResizeDirection="Columns"
+                  Background="Transparent"
+                  Width="5" HorizontalAlignment="Stretch"
+                  IsVisible="{Binding IsStatsPaneOpen}" />
+
+    <!-- ══════════════════════════════════════════════════════════
+         Col 5: Deck stats pane (collapsible)
+         ══════════════════════════════════════════════════════════ -->
+    <Border Grid.Column="5" Margin="{Binding SidePaneBottomMargin}"
+            Background="{DynamicResource ThemeSurfaceBrush}"
+            CornerRadius="8"
+            IsVisible="{Binding IsStatsPaneOpen}">
+      <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Spacing="10" Margin="10,8,10,10">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Deck Stats" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding SelectedDeck.Name}" Opacity="0.65" FontSize="11"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </StackPanel>
+
+          <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8"
+                  IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNull}}">
+            <TextBlock Text="Select a deck to view stats." Opacity="0.7" />
+          </Border>
+
+          <StackPanel Spacing="10" IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Mana Curve (non-lands)" FontWeight="SemiBold" FontSize="12" />
+                <ItemsControl ItemsSource="{Binding DeckCurveBins}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DeckCurveBinViewModel">
+                      <Grid ColumnDefinitions="26,*,28" Margin="0,1,0,1">
+                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" VerticalAlignment="Center" />
+                        <Border Grid.Column="1" Height="12" Background="#22000000" CornerRadius="3">
+                          <Border Height="12" HorizontalAlignment="Left"
+                                  Width="{Binding BarWidth}" CornerRadius="3"
+                                  Background="#6690B8FF" />
+                        </Border>
+                        <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11" HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+              <StackPanel Spacing="4">
+                <TextBlock Text="Gameplay" FontWeight="SemiBold" FontSize="12" />
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Mean turn to first land miss" Opacity="0.75" />
+                  <TextBlock Grid.Column="1" Text="{Binding MeanTurnsToFirstLandMissText}" FontWeight="SemiBold" />
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Lands" FontWeight="SemiBold" FontSize="12" />
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Total lands" Opacity="0.75" />
+                  <TextBlock Grid.Column="1" Text="{Binding DeckLandCount}" FontWeight="SemiBold" />
+                </Grid>
+                <TextBlock FontSize="10" Opacity="0.7"
+                           IsVisible="{Binding HasActiveDeckColorFilter}">
+                  <Run Text="Deck filter: " />
+                  <Run Text="{Binding ActiveDeckColorFilterText}" />
+                  <Run Text=" (tap active color to clear)" />
+                </TextBlock>
+                <ItemsControl ItemsSource="{Binding LandColorHistogram}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DeckColorHistogramItemViewModel">
+                      <Button Command="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).ToggleDeckColorFilterCommand}"
+                              CommandParameter="{Binding Label}"
+                              Opacity="{Binding RowOpacity}"
+                              Background="Transparent" BorderBrush="Transparent" Padding="0"
+                              HorizontalContentAlignment="Stretch">
+                        <Grid ColumnDefinitions="22,*,30" Margin="0,1,0,1">
+                          <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" VerticalAlignment="Center" />
+                          <Border Grid.Column="1" Height="14" Background="#22000000" CornerRadius="3">
+                            <Grid>
+                              <Border Height="14" HorizontalAlignment="Left" Width="{Binding BarWidth}" CornerRadius="3"
+                                      Background="{Binding BarColor}">
+                                <TextBlock Text="{Binding Count}" FontSize="10" FontWeight="SemiBold"
+                                           HorizontalAlignment="Right" Margin="0,0,4,0"
+                                           VerticalAlignment="Center" Foreground="{Binding TextColor}" />
+                              </Border>
+                              <Border BorderBrush="#C0FFFFFF" BorderThickness="1" CornerRadius="3"
+                                      IsVisible="{Binding IsActive}" />
+                            </Grid>
+                          </Border>
+                          <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11" HorizontalAlignment="Right"
+                                     VerticalAlignment="Center" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Cards by Color" FontWeight="SemiBold" FontSize="12" />
+                <ItemsControl ItemsSource="{Binding CardColorHistogram}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DeckColorHistogramItemViewModel">
+                      <Button Command="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).ToggleDeckColorFilterCommand}"
+                              CommandParameter="{Binding Label}"
+                              Opacity="{Binding RowOpacity}"
+                              Background="Transparent" BorderBrush="Transparent" Padding="0"
+                              HorizontalContentAlignment="Stretch">
+                        <Grid ColumnDefinitions="22,*,30" Margin="0,1,0,1">
+                          <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" VerticalAlignment="Center" />
+                          <Border Grid.Column="1" Height="14" Background="#22000000" CornerRadius="3">
+                            <Grid>
+                              <Border Height="14" HorizontalAlignment="Left" Width="{Binding BarWidth}" CornerRadius="3"
+                                      Background="{Binding BarColor}">
+                                <TextBlock Text="{Binding Count}" FontSize="10" FontWeight="SemiBold"
+                                           HorizontalAlignment="Right" Margin="0,0,4,0"
+                                           VerticalAlignment="Center" Foreground="{Binding TextColor}" />
+                              </Border>
+                              <Border BorderBrush="#C0FFFFFF" BorderThickness="1" CornerRadius="3"
+                                      IsVisible="{Binding IsActive}" />
+                            </Grid>
+                          </Border>
+                          <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11" HorizontalAlignment="Right"
+                                     VerticalAlignment="Center" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="Total Price" FontWeight="SemiBold" FontSize="12" />
+                <TextBlock Grid.Column="1" Text="{Binding DeckTotalPriceText}" FontWeight="Bold" FontSize="13" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+  <!-- Drag preview overlay (spans full Grid, sits on top, no hit testing) -->
+  <Canvas x:Name="DragOverlay" Grid.ColumnSpan="6" IsHitTestVisible="False" IsVisible="False">
     <Border x:Name="DragPreview" Width="90" Height="126" CornerRadius="6"
             ClipToBounds="True" Opacity="0.92"
             Background="{DynamicResource SystemControlBackgroundBaseMediumBrush}">
@@ -882,5 +760,98 @@
     </Border>
   </Canvas>
 
-  </Grid>
+  </Grid>  <!-- end RootGrid -->
+
+  <!-- ── Card detail panel — floats bottom-right over the grid ────────── -->
+  <Border IsVisible="{Binding IsCardDetailOpen}"
+          VerticalAlignment="Bottom"
+          HorizontalAlignment="Right"
+          Width="504"
+          Height="270"
+          Background="{DynamicResource ThemeSurfaceHighBrush}"
+          BorderBrush="{DynamicResource ThemeBorderBrush}"
+          BorderThickness="1,1,0,0"
+          CornerRadius="8,0,0,0"
+          Padding="12,10">
+    <Grid ColumnDefinitions="Auto,*" Width="480">
+
+      <!-- Card image — full card, no crop -->
+      <Border Grid.Column="0" CornerRadius="6" ClipToBounds="False"
+              Background="{DynamicResource ThemeSurfaceVariantBrush}" Margin="0,0,14,0"
+              VerticalAlignment="Center">
+        <Panel>
+          <Image Source="{Binding DetailSlot.Image}" Stretch="Uniform"
+                 MaxWidth="175" MaxHeight="245"
+                 IsVisible="{Binding DetailSlot.Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          <Border Width="145" Height="203"
+                  IsVisible="{Binding DetailSlot.Image, Converter={x:Static ObjectConverters.IsNull}}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8">
+              <ProgressBar IsIndeterminate="True" Width="80"
+                           IsVisible="{Binding DetailSlot.IsLoading}" />
+              <TextBlock Text="{Binding DetailSlot.Card.Name}"
+                         Foreground="White" FontSize="11" TextWrapping="Wrap"
+                         HorizontalAlignment="Center" TextAlignment="Center" Margin="6"
+                         IsVisible="{Binding !DetailSlot.IsLoading}" />
+            </StackPanel>
+          </Border>
+        </Panel>
+      </Border>
+
+      <!-- Card text — oracle text fills remaining height -->
+      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+
+        <!-- Name + close -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,4">
+          <TextBlock Grid.Column="0" Text="{Binding DetailSlot.Card.Name}"
+                     FontSize="15" FontWeight="Bold" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="✕" Command="{Binding CloseCardDetailCommand}"
+                  Padding="8,4" FontSize="12" VerticalAlignment="Top" />
+        </Grid>
+
+        <!-- Mana cost -->
+        <controls:ManaSymbolsControl Grid.Row="1" ManaCost="{Binding DetailSlot.Card.ManaCost}"
+                                     Margin="0,0,0,3"
+                                     IsVisible="{Binding DetailSlot.Card.ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+        <!-- Type line -->
+        <TextBlock Grid.Row="2" Text="{Binding DetailSlot.Card.TypeLine}"
+                   FontSize="11" Opacity="0.8" TextWrapping="Wrap" Margin="0,0,0,3"
+                   IsVisible="{Binding DetailSlot.Card.TypeLine, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+        <!-- Set · # · Rarity -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="4" Margin="0,0,0,6">
+          <TextBlock Text="{Binding DetailSlot.Card.SetCode}" FontSize="10" Opacity="0.55" />
+          <TextBlock Text="·" FontSize="10" Opacity="0.4" />
+          <TextBlock Text="{Binding DetailSlot.Card.CollectorNumber}" FontSize="10" Opacity="0.55" />
+          <TextBlock Text="·" FontSize="10" Opacity="0.4" />
+          <TextBlock Text="{Binding DetailSlot.Card.Rarity}" FontSize="10" Opacity="0.55" />
+        </StackPanel>
+
+        <!-- Oracle text (scrollable, fills remaining space) -->
+        <Border Grid.Row="4"
+                Background="{DynamicResource ThemeSurfaceVariantBrush}"
+                CornerRadius="4" Padding="6,5" Margin="0,0,0,5"
+                IsVisible="{Binding HasDetailOracleText}">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <controls:OracleTextControl OracleText="{Binding DetailOracleText}"
+                                        FontSize="11" />
+          </ScrollViewer>
+        </Border>
+
+        <!-- P/T or Loyalty -->
+        <TextBlock Grid.Row="5" Text="{Binding DetailPowerToughness}"
+                   FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Right"
+                   Margin="0,0,0,3"
+                   IsVisible="{Binding HasDetailPowerToughness}" />
+
+        <!-- Price -->
+        <TextBlock Grid.Row="6" FontSize="12" FontWeight="SemiBold"
+                   IsVisible="{Binding DetailSlot.Card.CurrentMarketPrice, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   Text="{Binding DetailSlot.Card.CurrentMarketPrice, StringFormat=$\{0:F2\}}" />
+
+      </Grid>
+    </Grid>
+  </Border>
+
+  </Panel>
 </UserControl>

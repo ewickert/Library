@@ -192,6 +192,7 @@ public partial class DecksView : UserControl
         CollectionPane.ExtListPane.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
         CollectionPane.ExtGridPane.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
         DeckPane.AddHandler(PointerPressedEvent, OnDeckPointerPressed, RoutingStrategies.Tunnel);
+        DeckPane.AddHandler(PointerMovedEvent, OnDeckPanePointerMoved, RoutingStrategies.Bubble);
 
         // Track at root level so we keep events even when the pointer leaves the collection pane
         this.AddHandler(PointerMovedEvent, OnRootPointerMoved, RoutingStrategies.Tunnel);
@@ -352,6 +353,14 @@ public partial class DecksView : UserControl
         _pendingDragSource = DragSourceKind.None;
         _dragStart = null;
         DragOverlay.IsVisible = false;
+    }
+
+    private void OnDeckPanePointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (DataContext is not DecksViewModel vm || !vm.IsListViewMode || _isDragging) return;
+        var deckCard = FindDeckCardFromSource(e.Source as Visual);
+        if (deckCard?.Card == null || vm.DetailSlot?.Card.Id == deckCard.Card.Id) return;
+        vm.OpenCardDetailCommand.Execute(deckCard.Card);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -182,9 +182,8 @@ public partial class DecksView : UserControl
     {
         base.OnAttachedToVisualTree(e);
 
-        // Zoom with Ctrl+Wheel on the two deck grids
+        // Zoom with Ctrl+Wheel on the deck grid
         DeckGridScrollViewer.AddHandler(PointerWheelChangedEvent, OnDeckGridWheel, RoutingStrategies.Tunnel);
-        CollectionPane.GridScroller.AddHandler(PointerWheelChangedEvent, OnCollectionGridWheel, RoutingStrategies.Tunnel);
 
         // Drag sources — tunnel so we get the press before inner controls (buttons etc.)
         CollectionPane.ListPane.AddHandler(PointerPressedEvent, OnCollectionPointerPressed, RoutingStrategies.Tunnel);
@@ -206,16 +205,6 @@ public partial class DecksView : UserControl
         if (DataContext is DecksViewModel vm)
         {
             vm.GridZoom = Math.Clamp(vm.GridZoom + (e.Delta.Y > 0 ? 0.1 : -0.1), 0.4, 3.0);
-            e.Handled = true;
-        }
-    }
-
-    private void OnCollectionGridWheel(object? sender, PointerWheelEventArgs e)
-    {
-        if (!e.KeyModifiers.HasFlag(KeyModifiers.Meta) && !e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
-        if (DataContext is DecksViewModel vm)
-        {
-            vm.CollectionGridZoom = Math.Clamp(vm.CollectionGridZoom + (e.Delta.Y > 0 ? 0.1 : -0.1), 0.4, 3.0);
             e.Handled = true;
         }
     }

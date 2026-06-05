@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Library.ViewModels;
 
@@ -27,6 +28,22 @@ public partial class CollectionPaneView : UserControl
     {
         InitializeComponent();
         PopOutButton.IsVisible = !IsFloating;
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        CollectionGridScrollViewer.AddHandler(PointerWheelChangedEvent, OnGridWheel, RoutingStrategies.Tunnel);
+    }
+
+    private void OnGridWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Meta) && !e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+        if (DataContext is DecksViewModel vm)
+        {
+            vm.CollectionGridZoom = Math.Clamp(vm.CollectionGridZoom + (e.Delta.Y > 0 ? 0.1 : -0.1), 0.4, 3.0);
+            e.Handled = true;
+        }
     }
 
     private async void OnSearchHelpClick(object? sender, RoutedEventArgs e)

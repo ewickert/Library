@@ -108,6 +108,27 @@ public class DatabaseService
                 DeckName TEXT,
                 FinishPosition INTEGER NOT NULL DEFAULT 1
             );
+
+            CREATE TABLE IF NOT EXISTS DeckVersions (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                DeckId INTEGER NOT NULL REFERENCES Decks(Id) ON DELETE CASCADE,
+                VersionNumber INTEGER NOT NULL,
+                Label TEXT,
+                CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
+                IsAuto INTEGER NOT NULL DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS DeckVersionCards (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                VersionId INTEGER NOT NULL REFERENCES DeckVersions(Id) ON DELETE CASCADE,
+                CardId INTEGER NOT NULL REFERENCES Cards(Id) ON DELETE CASCADE,
+                CardName TEXT NOT NULL DEFAULT '',
+                SetCode TEXT NOT NULL DEFAULT '',
+                CollectorNumber TEXT NOT NULL DEFAULT '',
+                Quantity INTEGER NOT NULL DEFAULT 1,
+                IsSideboard INTEGER NOT NULL DEFAULT 0,
+                IsCommander INTEGER NOT NULL DEFAULT 0
+            );
             """;
         cmd.ExecuteNonQuery();
 
@@ -122,6 +143,7 @@ public class DatabaseService
         RunMigration(conn, "ALTER TABLE Cards ADD COLUMN BaselineMarketPriceFetchedAt TEXT");
         RunMigration(conn, "ALTER TABLE Cards ADD COLUMN CurrentMarketPrice REAL");
         RunMigration(conn, "ALTER TABLE Cards ADD COLUMN CurrentMarketPriceFetchedAt TEXT");
+        RunMigration(conn, "ALTER TABLE GamePlayers ADD COLUMN DeckVersionId INTEGER REFERENCES DeckVersions(Id) ON DELETE SET NULL");
     }
 
     private static void RunMigration(SqliteConnection conn, string sql)
@@ -816,6 +838,164 @@ public class DatabaseService
         CommanderColorIdentity = r.IsDBNull(r.GetOrdinal("CommanderColorIdentity")) ? null : r.GetString(r.GetOrdinal("CommanderColorIdentity"))
     };
 
+    // --- Deck versions ---
+
+    public int CreateDeckSnapshot(int deckId, string? label, bool isAuto)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+        var versionId = CreateDeckSnapshotCore(conn, tx, deckId, label, isAuto);
+        tx.Commit();
+        return versionId;
+    }
+
+    private int CreateDeckSnapshotCore(SqliteConnection conn, SqliteTransaction tx, int deckId, string? label, bool isAuto)
+    {
+        int versionNumber;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "SELECT COALESCE(MAX(VersionNumber), 0) + 1 FROM DeckVersions WHERE DeckId = $deckId";
+            cmd.Parameters.AddWithValue("$deckId", deckId);
+            versionNumber = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        int versionId;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO DeckVersions (DeckId, VersionNumber, Label, CreatedAt, IsAuto)
+                VALUES ($deckId, $vn, $label, $at, $isAuto);
+                SELECT last_insert_rowid();
+                """;
+            cmd.Parameters.AddWithValue("$deckId", deckId);
+            cmd.Parameters.AddWithValue("$vn", versionNumber);
+            cmd.Parameters.AddWithValue("$label", (object?)label ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$at", DateTime.UtcNow.ToString("o"));
+            cmd.Parameters.AddWithValue("$isAuto", isAuto ? 1 : 0);
+            versionId = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO DeckVersionCards (VersionId, CardId, CardName, SetCode, CollectorNumber, Quantity, IsSideboard, IsCommander)
+                SELECT $versionId, dc.CardId, c.Name, c.SetCode, c.CollectorNumber, dc.Quantity, dc.IsSideboard, dc.IsCommander
+                FROM DeckCards dc
+                JOIN Cards c ON c.Id = dc.CardId
+                WHERE dc.DeckId = $deckId
+                """;
+            cmd.Parameters.AddWithValue("$versionId", versionId);
+            cmd.Parameters.AddWithValue("$deckId", deckId);
+            cmd.ExecuteNonQuery();
+        }
+
+        return versionId;
+    }
+
+    /// <summary>Returns the latest version ID for this deck, creating an auto-snapshot only if the deck changed since the last version.</summary>
+    public int GetOrCreateCurrentSnapshot(int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+
+        // Get latest version
+        int? latestVersionId = null;
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT Id FROM DeckVersions WHERE DeckId = $deckId ORDER BY VersionNumber DESC LIMIT 1";
+            cmd.Parameters.AddWithValue("$deckId", deckId);
+            var result = cmd.ExecuteScalar();
+            if (result != null && result != DBNull.Value)
+                latestVersionId = Convert.ToInt32(result);
+        }
+
+        if (latestVersionId.HasValue && !DeckChangedSinceVersion(conn, deckId, latestVersionId.Value))
+            return latestVersionId.Value;
+
+        using var tx = conn.BeginTransaction();
+        var newId = CreateDeckSnapshotCore(conn, tx, deckId, null, isAuto: true);
+        tx.Commit();
+        return newId;
+    }
+
+    private bool DeckChangedSinceVersion(SqliteConnection conn, int deckId, int versionId)
+    {
+        // Compare current DeckCards with DeckVersionCards for this version
+        // They match if the set of (CardId, Quantity, IsSideboard, IsCommander) is identical
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT COUNT(*) FROM (
+                SELECT CardId, Quantity, IsSideboard, IsCommander FROM DeckCards WHERE DeckId = $deckId
+                EXCEPT
+                SELECT CardId, Quantity, IsSideboard, IsCommander FROM DeckVersionCards WHERE VersionId = $versionId
+            ) UNION ALL
+            SELECT COUNT(*) FROM (
+                SELECT CardId, Quantity, IsSideboard, IsCommander FROM DeckVersionCards WHERE VersionId = $versionId
+                EXCEPT
+                SELECT CardId, Quantity, IsSideboard, IsCommander FROM DeckCards WHERE DeckId = $deckId
+            )
+            """;
+        cmd.Parameters.AddWithValue("$deckId", deckId);
+        cmd.Parameters.AddWithValue("$versionId", versionId);
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            if (r.GetInt32(0) > 0) return true;
+        return false;
+    }
+
+    public List<DeckVersion> GetDeckVersions(int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM DeckVersions WHERE DeckId = $deckId ORDER BY VersionNumber DESC";
+        cmd.Parameters.AddWithValue("$deckId", deckId);
+        using var r = cmd.ExecuteReader();
+        var versions = new List<DeckVersion>();
+        while (r.Read())
+            versions.Add(ReadDeckVersion(r));
+        return versions;
+    }
+
+    public List<DeckVersionCard> GetDeckVersionCards(int versionId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT * FROM DeckVersionCards WHERE VersionId = $versionId ORDER BY CardName";
+        cmd.Parameters.AddWithValue("$versionId", versionId);
+        using var r = cmd.ExecuteReader();
+        var cards = new List<DeckVersionCard>();
+        while (r.Read())
+            cards.Add(new DeckVersionCard
+            {
+                Id = r.GetInt32(r.GetOrdinal("Id")),
+                VersionId = versionId,
+                CardId = r.GetInt32(r.GetOrdinal("CardId")),
+                CardName = r.GetString(r.GetOrdinal("CardName")),
+                SetCode = r.GetString(r.GetOrdinal("SetCode")),
+                CollectorNumber = r.GetString(r.GetOrdinal("CollectorNumber")),
+                Quantity = r.GetInt32(r.GetOrdinal("Quantity")),
+                IsSideboard = r.GetInt32(r.GetOrdinal("IsSideboard")) == 1,
+                IsCommander = r.GetInt32(r.GetOrdinal("IsCommander")) == 1
+            });
+        return cards;
+    }
+
+    private static DeckVersion ReadDeckVersion(SqliteDataReader r) => new()
+    {
+        Id = r.GetInt32(r.GetOrdinal("Id")),
+        DeckId = r.GetInt32(r.GetOrdinal("DeckId")),
+        VersionNumber = r.GetInt32(r.GetOrdinal("VersionNumber")),
+        Label = r.IsDBNull(r.GetOrdinal("Label")) ? null : r.GetString(r.GetOrdinal("Label")),
+        CreatedAt = DateTime.Parse(r.GetString(r.GetOrdinal("CreatedAt"))),
+        IsAuto = r.GetInt32(r.GetOrdinal("IsAuto")) == 1
+    };
+
     // --- Binders ---
 
     public List<Binder> GetAllBinders()
@@ -970,14 +1150,15 @@ public class DatabaseService
             using var cmd = conn.CreateCommand();
             cmd.Transaction = tx;
             cmd.CommandText = """
-                INSERT INTO GamePlayers (GameId, PlayerName, IsMe, DeckId, DeckName, FinishPosition)
-                VALUES ($gameId, $name, $isMe, $deckId, $deckName, $pos)
+                INSERT INTO GamePlayers (GameId, PlayerName, IsMe, DeckId, DeckName, DeckVersionId, FinishPosition)
+                VALUES ($gameId, $name, $isMe, $deckId, $deckName, $versionId, $pos)
                 """;
             cmd.Parameters.AddWithValue("$gameId", gameId);
             cmd.Parameters.AddWithValue("$name", p.PlayerName);
             cmd.Parameters.AddWithValue("$isMe", p.IsMe ? 1 : 0);
             cmd.Parameters.AddWithValue("$deckId", (object?)p.DeckId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$deckName", (object?)p.DeckName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$versionId", (object?)p.DeckVersionId ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$pos", p.FinishPosition);
             cmd.ExecuteNonQuery();
         }
@@ -1086,9 +1267,10 @@ public class DatabaseService
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT gp.*, d.Name AS LinkedDeckName
+            SELECT gp.*, d.Name AS LinkedDeckName, dv.VersionNumber AS DeckVersionNumber
             FROM GamePlayers gp
             LEFT JOIN Decks d ON d.Id = gp.DeckId
+            LEFT JOIN DeckVersions dv ON dv.Id = gp.DeckVersionId
             WHERE gp.GameId = $gameId
             ORDER BY gp.FinishPosition
             """;
@@ -1103,6 +1285,10 @@ public class DatabaseService
             var linkedName = r.IsDBNull(linkedNameOrd) ? null : r.GetString(linkedNameOrd);
             var deckNameOrd = r.GetOrdinal("DeckName");
             var deckName = r.IsDBNull(deckNameOrd) ? null : r.GetString(deckNameOrd);
+            var versionIdOrd = r.GetOrdinal("DeckVersionId");
+            var versionId = r.IsDBNull(versionIdOrd) ? (int?)null : r.GetInt32(versionIdOrd);
+            var versionNumOrd = r.GetOrdinal("DeckVersionNumber");
+            var versionNum = r.IsDBNull(versionNumOrd) ? (int?)null : r.GetInt32(versionNumOrd);
 
             players.Add(new GamePlayer
             {
@@ -1112,6 +1298,8 @@ public class DatabaseService
                 IsMe = r.GetInt32(r.GetOrdinal("IsMe")) == 1,
                 DeckId = deckId,
                 DeckName = linkedName ?? deckName,
+                DeckVersionId = versionId,
+                DeckVersionNumber = versionNum,
                 FinishPosition = r.GetInt32(r.GetOrdinal("FinishPosition")),
                 Deck = deckId.HasValue && linkedName != null ? new Models.Deck { Id = deckId.Value, Name = linkedName } : null
             });

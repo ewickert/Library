@@ -360,6 +360,128 @@ public partial class DecksViewModel : ObservableObject
     [RelayCommand]
     private void ToggleStatsPane() => IsStatsPaneOpen = !IsStatsPaneOpen;
 
+    // ── Version history pane ──────────────────────────────────────────────────
+    [ObservableProperty] private bool _isHistoryPaneOpen;
+    [ObservableProperty] private ObservableCollection<DeckVersionViewModel> _deckVersions = new();
+    [ObservableProperty] private DeckVersionViewModel? _selectedVersionA;
+    [ObservableProperty] private DeckVersionViewModel? _selectedVersionB;
+    [ObservableProperty] private ObservableCollection<DeckDiffEntryViewModel> _versionDiff = new();
+    [ObservableProperty] private string _newVersionLabel = string.Empty;
+    [ObservableProperty] private bool _diffIsEmpty;
+    [ObservableProperty] private string _diffSummary = string.Empty;
+
+    [RelayCommand]
+    private void ToggleHistoryPane() => IsHistoryPaneOpen = !IsHistoryPaneOpen;
+
+    [RelayCommand]
+    private void SaveVersion()
+    {
+        if (SelectedDeck == null) return;
+        var label = string.IsNullOrWhiteSpace(NewVersionLabel) ? null : NewVersionLabel.Trim();
+        _db.CreateDeckSnapshot(SelectedDeck.Id, label, isAuto: false);
+        NewVersionLabel = string.Empty;
+        ReloadDeckVersions();
+    }
+
+    [RelayCommand]
+    private void SelectVersionA(DeckVersionViewModel? vm)
+    {
+        if (SelectedVersionA != null) SelectedVersionA.IsSelectedA = false;
+        SelectedVersionA = vm;
+        if (vm != null) vm.IsSelectedA = true;
+        ComputeDiff();
+    }
+
+    [RelayCommand]
+    private void SelectVersionB(DeckVersionViewModel? vm)
+    {
+        if (SelectedVersionB != null) SelectedVersionB.IsSelectedB = false;
+        SelectedVersionB = vm;
+        if (vm != null) vm.IsSelectedB = true;
+        ComputeDiff();
+    }
+
+    [RelayCommand]
+    private void ClearVersionSelection()
+    {
+        SelectVersionA(null);
+        SelectVersionB(null);
+    }
+
+    private void ComputeDiff()
+    {
+        VersionDiff.Clear();
+        DiffSummary = string.Empty;
+        DiffIsEmpty = false;
+
+        if (SelectedVersionA == null) return;
+
+        var from = _db.GetDeckVersionCards(SelectedVersionA.Version.Id);
+
+        List<DeckVersionCard> to;
+        if (SelectedVersionB != null)
+        {
+            to = _db.GetDeckVersionCards(SelectedVersionB.Version.Id);
+        }
+        else
+        {
+            // Compare against current live deck
+            if (SelectedDeck == null) return;
+            var deck = _db.GetDeckWithCards(SelectedDeck.Id);
+            to = deck?.Cards.Select(dc => new DeckVersionCard
+            {
+                CardId = dc.CardId,
+                CardName = dc.Card?.Name ?? string.Empty,
+                SetCode = dc.Card?.SetCode ?? string.Empty,
+                CollectorNumber = dc.Card?.CollectorNumber ?? string.Empty,
+                Quantity = dc.Quantity,
+                IsSideboard = dc.IsSideboard,
+                IsCommander = dc.IsCommander
+            }).ToList() ?? new List<DeckVersionCard>();
+        }
+
+        var diff = DeckDiff.Compute(from, to);
+        if (diff.Count == 0)
+        {
+            DiffIsEmpty = true;
+            DiffSummary = "No differences.";
+            return;
+        }
+
+        foreach (var entry in diff)
+            VersionDiff.Add(new DeckDiffEntryViewModel(entry));
+
+        var added = diff.Count(e => e.Change == DiffChangeKind.Added);
+        var removed = diff.Count(e => e.Change == DiffChangeKind.Removed);
+        var changed = diff.Count - added - removed;
+        var parts = new List<string>();
+        if (added > 0) parts.Add($"+{added}");
+        if (removed > 0) parts.Add($"-{removed}");
+        if (changed > 0) parts.Add($"~{changed}");
+        DiffSummary = string.Join(" ", parts) + $" ({diff.Count} change{(diff.Count == 1 ? "" : "s")})";
+    }
+
+    private void ReloadDeckVersions()
+    {
+        if (SelectedDeck == null)
+        {
+            DeckVersions.Clear();
+            SelectedVersionA = null;
+            SelectedVersionB = null;
+            VersionDiff.Clear();
+            DiffSummary = string.Empty;
+            return;
+        }
+
+        var versions = _db.GetDeckVersions(SelectedDeck.Id);
+        DeckVersions = new ObservableCollection<DeckVersionViewModel>(
+            versions.Select(v => new DeckVersionViewModel(v)));
+        SelectedVersionA = null;
+        SelectedVersionB = null;
+        VersionDiff.Clear();
+        DiffSummary = string.Empty;
+    }
+
     [RelayCommand]
     private void ToggleDeckColorFilter(string? color)
     {
@@ -442,6 +564,7 @@ public partial class DecksViewModel : ObservableObject
         RefreshCollectionFilter();
         RecomputeDeckStats();
         ReloadDeckGameStats(value?.Id);
+        ReloadDeckVersions();
     }
 
     private void ReloadDeckGameStats(int? deckId)

@@ -49,11 +49,11 @@ public partial class DecksView : UserControl
         if (_subscribedVm != null)
         {
             _subscribedVm.PropertyChanged += OnVmPropertyChanged;
-            UpdatePaneColumns(_subscribedVm.IsDeckSidebarOpen, _subscribedVm.IsCollectionPaneOpen, _subscribedVm.IsScryfallPaneOpen, _subscribedVm.IsStatsPaneOpen);
+            UpdatePaneColumns(_subscribedVm.IsDeckSidebarOpen, _subscribedVm.IsCollectionPaneOpen, _subscribedVm.IsScryfallPaneOpen, _subscribedVm.IsStatsPaneOpen, _subscribedVm.IsHistoryPaneOpen);
         }
         else
         {
-            UpdatePaneColumns(true, false, false, false);
+            UpdatePaneColumns(true, false, false, false, false);
         }
 
         ApplyResponsiveLayout(Bounds.Width);
@@ -67,15 +67,16 @@ public partial class DecksView : UserControl
         if (e.PropertyName == nameof(DecksViewModel.IsCollectionPaneOpen) ||
             e.PropertyName == nameof(DecksViewModel.IsStatsPaneOpen) ||
             e.PropertyName == nameof(DecksViewModel.IsDeckSidebarOpen) ||
-            e.PropertyName == nameof(DecksViewModel.IsScryfallPaneOpen))
+            e.PropertyName == nameof(DecksViewModel.IsScryfallPaneOpen) ||
+            e.PropertyName == nameof(DecksViewModel.IsHistoryPaneOpen))
         {
-            UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsScryfallPaneOpen, vm.IsStatsPaneOpen);
+            UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsScryfallPaneOpen, vm.IsStatsPaneOpen, vm.IsHistoryPaneOpen);
         }
     }
 
-    private void UpdatePaneColumns(bool sidebarOpen, bool collectionOpen, bool scryfallOpen, bool statsOpen)
+    private void UpdatePaneColumns(bool sidebarOpen, bool collectionOpen, bool scryfallOpen, bool statsOpen, bool historyOpen)
     {
-        // Col indices: 0=sidebar, 1=content, 2=splitter, 3=collection, 4=splitter, 5=scryfall, 6=splitter, 7=stats
+        // Col indices: 0=sidebar, 1=content, 2=splitter, 3=collection, 4=splitter, 5=scryfall, 6=splitter, 7=stats, 8=splitter, 9=history
         var deckListColumn         = RootGrid.ColumnDefinitions[0];
         var deckContentColumn      = RootGrid.ColumnDefinitions[1];
         var deckCollectionSplitter = RootGrid.ColumnDefinitions[2];
@@ -84,6 +85,8 @@ public partial class DecksView : UserControl
         var scryfallColumn         = RootGrid.ColumnDefinitions[5];
         var scryfallStatsSplitter  = RootGrid.ColumnDefinitions[6];
         var statsColumn            = RootGrid.ColumnDefinitions[7];
+        var statsHistorySplitter   = RootGrid.ColumnDefinitions[8];
+        var historyColumn          = RootGrid.ColumnDefinitions[9];
 
         if (!sidebarOpen)
         {
@@ -116,9 +119,10 @@ public partial class DecksView : UserControl
             deckContentColumn.MinWidth = 200;
         }
 
-        SetPaneColumn(collectionColumn, deckCollectionSplitter, collectionOpen, 0.34, 180, 340);
-        SetPaneColumn(scryfallColumn,   collectionScryfallSplitter, scryfallOpen, 0.34, 180, 340);
-        SetPaneColumn(statsColumn,      scryfallStatsSplitter,  statsOpen,   0.28, 220, 360);
+        SetPaneColumn(collectionColumn, deckCollectionSplitter,    collectionOpen, 0.34, 180, 340);
+        SetPaneColumn(scryfallColumn,   collectionScryfallSplitter, scryfallOpen,  0.34, 180, 340);
+        SetPaneColumn(statsColumn,      scryfallStatsSplitter,      statsOpen,     0.28, 220, 360);
+        SetPaneColumn(historyColumn,    statsHistorySplitter,       historyOpen,   0.28, 220, 380);
     }
 
     private static void SetPaneColumn(ColumnDefinition col, ColumnDefinition splitter, bool open,
@@ -168,7 +172,7 @@ public partial class DecksView : UserControl
             _autoCollapsedCollectionPane = false;
         }
 
-        UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsScryfallPaneOpen, vm.IsStatsPaneOpen);
+        UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsScryfallPaneOpen, vm.IsStatsPaneOpen, vm.IsHistoryPaneOpen);
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

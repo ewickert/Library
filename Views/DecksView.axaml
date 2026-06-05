@@ -68,6 +68,8 @@
       <ColumnDefinition Width="0" MinWidth="0" />
       <ColumnDefinition Width="0" />
       <ColumnDefinition Width="0" MinWidth="0" />
+      <ColumnDefinition Width="0" />
+      <ColumnDefinition Width="0" MinWidth="0" />
     </Grid.ColumnDefinitions>
 
     <!-- ══════════════════════════════════════════════════════════
@@ -188,6 +190,11 @@
           <Button Command="{Binding ImportDeckCommand}" Padding="6,3"
                   ToolTip.Tip="Import a deck from a text file">
             <TextBlock Text="↓ Import" FontSize="12" />
+          </Button>
+          <Button Command="{Binding ToggleHistoryPaneCommand}" Padding="6,3"
+                  IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  ToolTip.Tip="Toggle version history pane">
+            <TextBlock Text="🕓 History" FontSize="12" />
           </Button>
           <Button Content="Delete Deck" Command="{Binding DeleteDeckCommand}"
                   Background="#CC3300" Foreground="White" />
@@ -836,8 +843,132 @@
       </ScrollViewer>
     </Border>
 
+    <!-- Splitter between stats pane and history pane -->
+    <GridSplitter Grid.Column="8"
+                  ResizeDirection="Columns"
+                  Background="Transparent"
+                  Width="5" HorizontalAlignment="Stretch"
+                  IsVisible="{Binding IsHistoryPaneOpen}" />
+
+    <!-- ══════════════════════════════════════════════════════════
+         Col 9: Version history pane (collapsible)
+         ══════════════════════════════════════════════════════════ -->
+    <Border Grid.Column="9" Margin="{Binding SidePaneBottomMargin}"
+            Background="{DynamicResource ThemeSurfaceBrush}"
+            CornerRadius="8"
+            IsVisible="{Binding IsHistoryPaneOpen}">
+      <DockPanel>
+
+        <!-- Header + save form -->
+        <StackPanel DockPanel.Dock="Top" Spacing="8" Margin="10,8,10,0">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Version History" FontWeight="Bold" FontSize="13" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding SelectedDeck.Name}" Opacity="0.65" FontSize="11"
+                       VerticalAlignment="Center"
+                       IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </StackPanel>
+
+          <!-- Save a named version -->
+          <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+            <StackPanel Spacing="6">
+              <TextBlock Text="Save snapshot" FontWeight="SemiBold" FontSize="11" />
+              <TextBox Text="{Binding NewVersionLabel}" Watermark="Label (optional)" FontSize="11" Height="28" Padding="6,3" />
+              <Button Content="Save Version" Command="{Binding SaveVersionCommand}"
+                      Classes="accent" FontSize="11"
+                      IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </Border>
+
+          <!-- Diff summary -->
+          <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8"
+                  IsVisible="{Binding DiffSummary, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <StackPanel Spacing="4">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="Diff:" FontWeight="SemiBold" FontSize="11" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding DiffSummary}" FontSize="11" VerticalAlignment="Center" />
+                <Button Content="✕" Command="{Binding ClearVersionSelectionCommand}"
+                        Padding="5,2" FontSize="10" />
+              </StackPanel>
+              <TextBlock Text="{Binding SelectedVersionA.DisplayLabel}" FontSize="10" Opacity="0.7"
+                         IsVisible="{Binding SelectedVersionA, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <TextBlock Text="vs." FontSize="10" Opacity="0.5"
+                         IsVisible="{Binding SelectedVersionB, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <TextBlock FontSize="10" Opacity="0.7"
+                         IsVisible="{Binding SelectedVersionB, Converter={x:Static ObjectConverters.IsNotNull}}"
+                         Text="{Binding SelectedVersionB.DisplayLabel}" />
+              <TextBlock Text="vs. current deck" FontSize="10" Opacity="0.5"
+                         IsVisible="{Binding SelectedVersionB, Converter={x:Static ObjectConverters.IsNull}}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Diff entries -->
+        <ScrollViewer DockPanel.Dock="Bottom" VerticalScrollBarVisibility="Auto" Margin="10,6,10,8"
+                      IsVisible="{Binding VersionDiff.Count}">
+          <ItemsControl ItemsSource="{Binding VersionDiff}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:DeckDiffEntryViewModel">
+                <Border CornerRadius="4" Padding="7,4" Margin="0,1"
+                        Background="{Binding RowColor}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0">
+                      <TextBlock Text="{Binding CardName}" FontSize="12" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding SetCode}" FontSize="10" Opacity="0.55" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="{Binding ChangeLabel}"
+                               Foreground="{Binding ChangeLabelColor}"
+                               FontWeight="Bold" FontSize="12"
+                               VerticalAlignment="Center" Margin="6,0,0,0" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Version list -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="10,6,10,0">
+          <StackPanel Spacing="2">
+            <TextBlock Text="No versions saved yet." FontSize="11" Opacity="0.5"
+                       IsVisible="{Binding !DeckVersions.Count}" Margin="0,4" />
+            <ItemsControl ItemsSource="{Binding DeckVersions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeckVersionViewModel">
+                  <Border CornerRadius="5" Padding="8,6" Margin="0,1"
+                          Background="{DynamicResource ThemeSurfaceVariantBrush}">
+                    <Grid ColumnDefinitions="*,Auto,Auto">
+                      <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Binding DisplayLabel}" FontSize="11" FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="auto" FontSize="9" Opacity="0.45"
+                                   IsVisible="{Binding IsAuto}" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="A"
+                              ToolTip.Tip="Set as 'from' version for diff"
+                              Command="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).SelectVersionACommand}"
+                              CommandParameter="{Binding}"
+                              Classes.accent="{Binding IsSelectedA}"
+                              Padding="5,3" FontSize="11" FontWeight="Bold" Margin="4,0,0,0" />
+                      <Button Grid.Column="2" Content="B"
+                              ToolTip.Tip="Set as 'to' version for diff (leave unset to diff against current deck)"
+                              Command="{Binding $parent[UserControl].((vm:DecksViewModel)DataContext).SelectVersionBCommand}"
+                              CommandParameter="{Binding}"
+                              Classes.accent="{Binding IsSelectedB}"
+                              Padding="5,3" FontSize="11" FontWeight="Bold" Margin="4,0,0,0" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+
+      </DockPanel>
+    </Border>
+
   <!-- Drag preview overlay (spans full Grid, sits on top, no hit testing) -->
-  <Canvas x:Name="DragOverlay" Grid.ColumnSpan="8" IsHitTestVisible="False" IsVisible="False">
+  <Canvas x:Name="DragOverlay" Grid.ColumnSpan="10" IsHitTestVisible="False" IsVisible="False">
     <Border x:Name="DragPreview" Width="90" Height="126" CornerRadius="6"
             ClipToBounds="True" Opacity="0.92"
             Background="{DynamicResource SystemControlBackgroundBaseMediumBrush}">

@@ -186,6 +186,7 @@ public partial class GamesViewModel : ObservableObject
                 IsMe           = p.IsMe,
                 DeckId         = p.LinkedDeck?.Id,
                 DeckName       = string.IsNullOrWhiteSpace(p.DeckName) ? null : p.DeckName.Trim(),
+                DeckVersionId  = p.LinkedDeck != null ? _db.GetOrCreateCurrentSnapshot(p.LinkedDeck.Id) : null,
                 FinishPosition = p.FinishPosition
             }).ToList()
         };

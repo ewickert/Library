@@ -26,9 +26,18 @@ public class GamePlayer
     public bool IsMe { get; set; }
     public int? DeckId { get; set; }
     public string? DeckName { get; set; }
+    public int? DeckVersionId { get; set; }
+    public int? DeckVersionNumber { get; set; }
     public int FinishPosition { get; set; } = 1;
     public Deck? Deck { get; set; }
 
     public bool IsWinner => FinishPosition == 1;
-    public string DeckDisplayName => Deck?.Name ?? DeckName ?? string.Empty;
+    public string DeckDisplayName
+    {
+        get
+        {
+            var name = Deck?.Name ?? DeckName ?? string.Empty;
+            return DeckVersionNumber.HasValue ? $"{name} (v{DeckVersionNumber})" : name;
+        }
+    }
 }

@@ -7,6 +7,8 @@ using Avalonia.Threading;
 using Library.Services;
 using Library.ViewModels;
 using Library.Views;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -14,8 +16,21 @@ namespace Library;
 
 public partial class App : Application
 {
+    public static IServiceProvider Services { get; private set; } = null!;
+
+    private static IServiceProvider BuildServices()
+    {
+        var sc = new ServiceCollection();
+        sc.AddLogging(b => b.AddDebug().SetMinimumLevel(LogLevel.Debug));
+        sc.AddSingleton<DatabaseService>();
+        sc.AddSingleton<ScryfallService>();
+        sc.AddHttpClient<MtgJson.MtgJsonService>();
+        return sc.BuildServiceProvider();
+    }
+
     public override void Initialize()
     {
+        Services = BuildServices();
         AvaloniaXamlLoader.Load(this);
     }
 
@@ -31,9 +46,10 @@ public partial class App : Application
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleView)
         {
-            var db = new DatabaseService();
-            var scryfall = new ScryfallService();
-            var vm = new MainWindowViewModel(db, scryfall);
+            var db = Services.GetRequiredService<DatabaseService>();
+            var scryfall = Services.GetRequiredService<ScryfallService>();
+            var mtgJson = Services.GetRequiredService<MtgJson.MtgJsonService>();
+            var vm = new MainWindowViewModel(db, scryfall, mtgJson);
             var mainView = new MainView
             {
                 DataContext = vm

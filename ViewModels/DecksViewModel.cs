@@ -282,6 +282,77 @@ public partial class DecksViewModel : ObservableObject
             DeckTransferStatus = string.Empty;
     }
 
+    public async Task ImportMtgJsonDeckAsync(MtgJson.Models.Deck source, CancellationToken ct = default)
+    {
+        var deck = new Deck
+        {
+            Name = source.Name,
+            Description = string.Empty,
+            Format = source.Type,
+            Created = DateTime.UtcNow,
+        };
+        var deckId = _db.AddDeck(deck);
+
+        foreach (var deckCard in source.Commander.Concat(source.MainBoard))
+        {
+            if (ct.IsCancellationRequested) break;
+
+            bool isCommander = source.Commander.Contains(deckCard);
+            var scryfallId = deckCard.Identifiers.ScryfallId;
+
+            Card? localCard = null;
+            if (!string.IsNullOrEmpty(scryfallId))
+                localCard = _db.GetOwnedCardByScryfallId(scryfallId);
+
+            if (localCard == null)
+            {
+                var placeholder = new Card
+                {
+                    Name = deckCard.Name,
+                    ScryfallId = scryfallId ?? string.Empty,
+                    SetCode = deckCard.SetCode,
+                    SetName = string.Empty,
+                    CollectorNumber = deckCard.Number,
+                    Quantity = 1,
+                    IsPlaceholder = true,
+                    ColorIdentity = string.Join(",", deckCard.ColorIdentity),
+                    ManaCost = deckCard.ManaCost ?? string.Empty,
+                    TypeLine = BuildMtgJsonTypeLine(deckCard),
+                    Added = DateTime.UtcNow,
+                };
+                placeholder.Id = _db.AddCard(placeholder);
+                localCard = placeholder;
+            }
+
+            _db.AddCardToDeck(deckId, localCard.Id, deckCard.Count, false, isCommander);
+        }
+
+        if (source.Commander.Any())
+        {
+            var newDeck = _db.GetDeckWithCards(deckId);
+            var commanderName = source.Commander[0].Name;
+            var matchingDeckCard = newDeck?.Cards
+                .FirstOrDefault(dc => dc.Card?.Name?.Equals(commanderName, StringComparison.OrdinalIgnoreCase) == true);
+            if (matchingDeckCard != null)
+                _db.SetDeckCardCommander(deckId, matchingDeckCard.Id);
+        }
+
+        LoadDecks();
+        SelectedDeck = Decks.FirstOrDefault(d => d.Id == deckId);
+
+        var msg = $"Cloned \"{source.Name}\" from MTGJSON.";
+        DeckTransferStatus = msg;
+        _ = AutoClearTransferStatus(msg);
+    }
+
+    private static string BuildMtgJsonTypeLine(MtgJson.Models.DeckCard card)
+    {
+        var superAndType = string.Join(" ",
+            card.Supertypes.Concat(card.Types).Where(s => !string.IsNullOrEmpty(s)));
+        var subTypes = string.Join(" ", card.Subtypes.Where(s => !string.IsNullOrEmpty(s)));
+        return string.IsNullOrEmpty(subTypes) ? superAndType : $"{superAndType} — {subTypes}";
+    }
+
     private void NotifyDeckCount()
     {
         OnPropertyChanged(nameof(DeckTotalCardCount));

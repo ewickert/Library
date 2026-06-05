@@ -2,6 +2,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Library.Services;
+using MtgJson;
 using System.Threading.Tasks;
 using System.Windows.Input;
 
@@ -46,14 +47,20 @@ public partial class MainWindowViewModel : ObservableObject
     partial void OnCurrentThemeChanged(string value) =>
         ThemeService.Instance.Apply(value);
 
-    public MainWindowViewModel(DatabaseService db, ScryfallService scryfall)
+    public MainWindowViewModel(DatabaseService db, ScryfallService scryfall, MtgJsonService mtgJson)
     {
-        Collection = new CollectionViewModel(db, scryfall);
+        Collection = new CollectionViewModel(db, scryfall, mtgJson);
         Decks = new DecksViewModel(db, scryfall);
         Binders = new BindersViewModel(db, scryfall);
         Shopping = new ShoppingViewModel(db, scryfall, Decks);
         Games = new GamesViewModel(db);
         CommanderLife = new CommanderLifeViewModel();
+
+        Collection.RequestCloneToDeckBuilder = async deck =>
+        {
+            await Decks.ImportMtgJsonDeckAsync(deck);
+            SelectedTabIndex = 1;
+        };
     }
 
     // Tab index 3 = Shopping, 4 = Games — reload whenever the user navigates to them

@@ -26,6 +26,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MtgJson\MtgJson.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.12" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.12" Condition="'$(TargetFramework)' == 'net10.0'" />
     <PackageReference Include="Avalonia.Android" Version="11.3.12" Condition="'$(TargetFramework)' == 'net10.0-android'" />
@@ -39,6 +43,10 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.12" />
   </ItemGroup>
@@ -46,5 +54,9 @@
   <ItemGroup>
     <AvaloniaResource Include="Assets/Icons/Dice/*.svg" />
     <AvaloniaResource Include="Assets/Icons/Counters/*.svg" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <AndroidResource Include="Platforms/Android/Resources/**" Link="Resources/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

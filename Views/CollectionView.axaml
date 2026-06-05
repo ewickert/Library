@@ -3,6 +3,7 @@
              xmlns:vm="using:Library.ViewModels"
              xmlns:models="using:Library.Models"
              xmlns:controls="using:Library.Views.Controls"
+             xmlns:views="using:Library.Views"
              x:Class="Library.Views.CollectionView"
              x:DataType="vm:CollectionViewModel">
 
@@ -18,25 +19,27 @@
         <TextBox Text="{Binding SearchText}" Watermark="Search cards…" Width="200" />
         <Button Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"
                 Padding="6,2" FontWeight="Bold" />
-        <CheckBox Content="Search Scryfall" IsChecked="{Binding IsExternalSearch}"
-                  ToolTip.Tip="Search Scryfall for cards not in your collection" />
-        <Button Content="🔍 Search" Command="{Binding SearchExternalCommand}"
-                IsVisible="{Binding IsExternalSearch}" Padding="8,4" />
         <ComboBox ItemsSource="{Binding AvailableSets}" SelectedItem="{Binding SelectedSetFilter}"
-                  Width="180" MaxDropDownHeight="300"
-                  IsVisible="{Binding !IsExternalSearch}">
+                  Width="180" MaxDropDownHeight="300">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:SetItem">
               <TextBlock Text="{Binding Display}" />
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <Button Content="+ Add Card" Click="OnAddCardClick" IsVisible="{Binding !IsExternalSearch}" />
+        <Button Content="+ Add Card" Click="OnAddCardClick" />
+        <Button Padding="8,4"
+                Command="{Binding ToggleBrowsePaneCommand}"
+                ToolTip.Tip="Browse Scryfall and MTGJSON decks">
+          <Panel>
+            <TextBlock Text="⊡ Browse" IsVisible="{Binding !IsBrowsePaneOpen}" FontSize="13" />
+            <TextBlock Text="✕ Browse" IsVisible="{Binding IsBrowsePaneOpen}" FontSize="13" />
+          </Panel>
+        </Button>
         <TextBlock Text="{Binding BackfillStatus}" VerticalAlignment="Center"
                    FontSize="12" Opacity="0.7"
                    IsVisible="{Binding BackfillStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         <Button Command="{Binding RefreshPricesCommand}" Padding="8,4"
-                IsVisible="{Binding !IsExternalSearch}"
                 ToolTip.Tip="Fetch current market prices from Scryfall. Sets baseline on first run, then updates current price for comparison.">
           <StackPanel Orientation="Horizontal" Spacing="4">
             <TextBlock IsVisible="{Binding !IsRefreshingPrices}" Text="$ Prices" />
@@ -46,7 +49,7 @@
         <TextBlock Text="{Binding PriceRefreshStatus}" VerticalAlignment="Center"
                    FontSize="12" Opacity="0.7"
                    IsVisible="{Binding PriceRefreshStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        <Button Command="{Binding ToggleViewCommand}" Padding="8,4" IsVisible="{Binding !IsExternalSearch}">
+        <Button Command="{Binding ToggleViewCommand}" Padding="8,4">
           <StackPanel Orientation="Horizontal" Spacing="4">
             <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="13" />
             <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="13" />
@@ -56,7 +59,8 @@
     </Border>
 
     <!-- List / Grid area -->
-    <Panel Grid.Row="1" Grid.Column="0" IsVisible="{Binding !IsExternalSearch}">
+    <Panel x:Name="CollectionPanel" Grid.Row="1" Grid.Column="0"
+           DragDrop.AllowDrop="True">
 
       <!-- List view -->
       <DataGrid x:Name="CollectionDataGrid"
@@ -251,188 +255,19 @@
 
     </Panel>
 
-    <!-- External Scryfall results (cards not in collection) -->
-    <Grid Grid.Row="1" Grid.Column="0" RowDefinitions="Auto,*,Auto"
-          IsVisible="{Binding IsExternalSearch}" Margin="8,0,4,8">
+    <!-- Right panel: switches between card detail and Browse pane -->
+    <Panel Grid.Row="0" Grid.Column="1" Grid.RowSpan="3">
 
-      <!-- External results toolbar -->
-      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" Margin="0,4,0,6">
-        <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsExternalSearching}"
-                     Width="80" Height="8" VerticalAlignment="Center" />
-        <TextBlock Text="No results found." Opacity="0.5" VerticalAlignment="Center"
-                   IsVisible="{Binding IsExternalSearching, Converter={x:Static BoolConverters.Not}}" />
-        <Button Padding="6,2" FontSize="11"
-                Command="{Binding ToggleExternalViewCommand}">
-          <Panel>
-            <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsExternalGridView}" />
-            <TextBlock Text="☰ List" IsVisible="{Binding IsExternalGridView}" />
-          </Panel>
-        </Button>
-      </StackPanel>
-
-      <!-- List view -->
-      <ScrollViewer Grid.Row="1" IsVisible="{Binding !IsExternalGridView}">
-        <ItemsControl ItemsSource="{Binding ExternalResults}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ScryfallResultViewModel">
-              <Border Margin="0,3" Padding="10,8" CornerRadius="6"
-                      Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel Grid.Column="0" Spacing="2">
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                    <TextBlock FontSize="11" Opacity="0.7">
-                      <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding TypeLine}" />
-                    </TextBlock>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                      <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}"
-                          IsVisible="{Binding ManaCost, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                      <TextBlock Text="{Binding Rarity}" FontSize="11" Opacity="0.7" VerticalAlignment="Center" />
-                    </StackPanel>
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
-                    <Button Command="{Binding AddToCollectionCommand}"
-                            Padding="8,4" MinWidth="92"
-                            IsEnabled="{Binding !IsInCollection}">
-                      <Panel>
-                        <TextBlock Text="+ Add Card" IsVisible="{Binding !IsInCollection}" />
-                        <TextBlock Text="✓ Added" IsVisible="{Binding IsInCollection}" Foreground="LightGreen" />
-                      </Panel>
-                    </Button>
-                    <Button Command="{Binding ToggleShoppingListCommand}"
-                            Padding="8,4" MinWidth="92">
-                      <Panel>
-                        <TextBlock Text="+ Want It" IsVisible="{Binding !IsOnShoppingList}" />
-                        <TextBlock Text="✓ On List" IsVisible="{Binding IsOnShoppingList}" Foreground="LightGreen" />
-                      </Panel>
-                    </Button>
-                  </StackPanel>
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
-
-      <!-- Grid view -->
-      <ScrollViewer Grid.Row="1" IsVisible="{Binding IsExternalGridView}"
-                    HorizontalScrollBarVisibility="Disabled">
-        <ItemsControl ItemsSource="{Binding ExternalResults}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <WrapPanel Orientation="Horizontal" />
-            </ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ScryfallResultViewModel">
-              <Border Width="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).TileWidth}"
-                      Height="{Binding $parent[UserControl].((vm:CollectionViewModel)DataContext).TileHeight}"
-                      CornerRadius="8" ClipToBounds="True" Margin="6"
-                      ToolTip.ShowDelay="200"
-                      Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
-                <ToolTip.Tip>
-                  <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
-                    <Panel>
-                      <Image Source="{Binding Image}" MaxWidth="280" MaxHeight="392" Stretch="Uniform"
-                             IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                      <StackPanel Spacing="4" Margin="4"
-                                  IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
-                        <TextBlock Text="{Binding Name}" Foreground="White" FontSize="13" FontWeight="Bold"
-                                   TextWrapping="Wrap" MaxWidth="268" />
-                        <TextBlock Text="{Binding TypeLine}" Foreground="#CCCCCC" FontSize="11"
-                                   TextWrapping="Wrap" MaxWidth="268" />
-                        <controls:ManaSymbolsControl ManaCost="{Binding ManaCost}" />
-                      </StackPanel>
-                    </Panel>
-                  </Border>
-                </ToolTip.Tip>
-                <Panel>
-                  <Image Source="{Binding Image}" Stretch="UniformToFill"
-                         IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                              IsVisible="{Binding IsLoading}" Spacing="6">
-                    <ProgressBar IsIndeterminate="True" Width="80" />
-                    <TextBlock Text="{Binding Name}" FontSize="10" TextWrapping="Wrap"
-                               HorizontalAlignment="Center" TextAlignment="Center" Opacity="0.6" MaxWidth="140" />
-                  </StackPanel>
-                  <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="4"
-                              IsVisible="{Binding IsLoading, Converter={x:Static BoolConverters.Not}}">
-                    <Panel IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNull}}">
-                      <StackPanel Spacing="4" HorizontalAlignment="Center">
-                        <TextBlock Text="🃏" FontSize="32" HorizontalAlignment="Center" />
-                        <TextBlock Text="{Binding Name}" FontSize="10" TextWrapping="Wrap"
-                                   MaxWidth="140" HorizontalAlignment="Center" TextAlignment="Center" />
-                      </StackPanel>
-                    </Panel>
-                  </StackPanel>
-                  <!-- Add to Collection button overlay -->
-                  <Button Command="{Binding AddToCollectionCommand}"
-                          HorizontalAlignment="Left" VerticalAlignment="Top"
-                          Margin="4" Padding="6,3" FontSize="11" FontWeight="Bold"
-                          CornerRadius="4"
-                          IsEnabled="{Binding !IsInCollection}">
-                    <Button.Styles>
-                      <Style Selector="Button">
-                        <Setter Property="Background" Value="#CC1D6B2F" />
-                        <Setter Property="Foreground" Value="White" />
-                      </Style>
-                      <Style Selector="Button:pointerover /template/ ContentPresenter">
-                        <Setter Property="Background" Value="#EE2B8C42" />
-                      </Style>
-                    </Button.Styles>
-                    <Panel>
-                      <TextBlock Text="+ Add" IsVisible="{Binding !IsInCollection}" />
-                      <TextBlock Text="✓ Added" IsVisible="{Binding IsInCollection}" Foreground="#B8FFB8" />
-                    </Panel>
-                  </Button>
-
-                  <!-- Want It button overlay -->
-                  <Button Command="{Binding ToggleShoppingListCommand}"
-                          HorizontalAlignment="Right" VerticalAlignment="Top"
-                          Margin="4" Padding="6,3" FontSize="11" FontWeight="Bold"
-                          CornerRadius="4">
-                    <Button.Styles>
-                      <Style Selector="Button">
-                        <Setter Property="Background" Value="#CC1A3A6C" />
-                        <Setter Property="Foreground" Value="White" />
-                      </Style>
-                      <Style Selector="Button:pointerover /template/ ContentPresenter">
-                        <Setter Property="Background" Value="#EE2244AA" />
-                      </Style>
-                    </Button.Styles>
-                    <Panel>
-                      <TextBlock Text="+ Want" IsVisible="{Binding !IsOnShoppingList}" />
-                      <TextBlock Text="✓ Wanted" IsVisible="{Binding IsOnShoppingList}" Foreground="#90EE90" />
-                    </Panel>
-                  </Button>
-                  <Border Background="#AA000000" CornerRadius="0,0,8,8"
-                          VerticalAlignment="Bottom" Padding="6,3">
-                    <StackPanel Spacing="3">
-                      <TextBlock Text="{Binding Name}" FontSize="10" Foreground="White"
-                                 TextTrimming="CharacterEllipsis" />
-                      <TextBlock FontSize="9" Foreground="#AAAAAA" TextTrimming="CharacterEllipsis">
-                        <Run Text="{Binding SetCode}" /><Run Text=" · " /><Run Text="{Binding Rarity}" />
-                      </TextBlock>
-                    </StackPanel>
-                  </Border>
-                </Panel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </ScrollViewer>
-
-      <!-- Load More -->
-      <Button Grid.Row="2"
-              Content="Load More"
-              Command="{Binding LoadMoreExternalResultsCommand}"
-              IsVisible="{Binding HasMoreExternalResults}"
-              HorizontalAlignment="Stretch"
-              Margin="0,4,0,4" Padding="8,5" FontSize="12" />
-
-    </Grid>
+    <!-- Browse pane (Scryfall + MTGJSON deck browser) -->
+    <Border IsVisible="{Binding IsBrowsePaneOpen}"
+            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+            CornerRadius="8" Margin="4,8,8,8">
+      <views:BrowsePaneView DataContext="{Binding BrowsePane}" />
+    </Border>
 
     <!-- Card detail panel -->
-    <Border x:Name="CardDetailPane" Grid.Row="0" Grid.Column="1" Grid.RowSpan="3"
+    <Border x:Name="CardDetailPane"
+            IsVisible="{Binding !IsBrowsePaneOpen}"
             Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
             CornerRadius="8" Margin="4,8,8,8" Padding="12">
       <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -544,6 +379,8 @@
         </StackPanel>
       </ScrollViewer>
     </Border>
+
+    </Panel>
 
     <!-- Compact detail panel for phones/tablets when side pane is hidden -->
     <Border x:Name="CompactCardDetailPane" Grid.Row="2" Grid.Column="0"

@@ -3,6 +3,7 @@ using Avalonia.Platform.Storage;
 using Library.Services;
 using Library.ViewModels;
 using Library.Views;
+using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 
 namespace Library;
@@ -14,9 +15,10 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
-        DatabaseService = new DatabaseService();
-        ScryfallService = new ScryfallService();
-        var vm = new MainWindowViewModel(DatabaseService, ScryfallService);
+        DatabaseService = App.Services.GetRequiredService<DatabaseService>();
+        ScryfallService = App.Services.GetRequiredService<ScryfallService>();
+        var mtgJson = App.Services.GetRequiredService<MtgJson.MtgJsonService>();
+        var vm = new MainWindowViewModel(DatabaseService, ScryfallService, mtgJson);
         DataContext = vm;
         InitializeComponent();
         SymbolService.Instance.BeginLoad();
@@ -52,7 +54,9 @@ public partial class MainWindow : Window
         {
             var tempPath = Path.Combine(Path.GetTempPath(), suggestedName);
             await File.WriteAllTextAsync(tempPath, content, System.Text.Encoding.UTF8);
+#if DESKTOP
             MacShareHelper.ShareFile(tempPath, TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
+#endif
         };
 
         // ── Deck import ────────────────────────────────────────────────────────

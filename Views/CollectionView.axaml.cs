@@ -17,6 +17,7 @@ public partial class CollectionView : UserControl
     {
         InitializeComponent();
         GridScrollViewer.AddHandler(PointerWheelChangedEvent, OnGridWheel, RoutingStrategies.Tunnel);
+        CollectionPanel.AddHandler(DragDrop.DropEvent, OnCollectionDrop, RoutingStrategies.Bubble);
         SizeChanged += OnSizeChanged;
         DataContextChanged += OnDataContextChanged;
         UpdateCompactClass(Bounds.Width);
@@ -42,7 +43,7 @@ public partial class CollectionView : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(CollectionViewModel.IsGridView) or nameof(CollectionViewModel.IsExternalSearch))
+        if (e.PropertyName is nameof(CollectionViewModel.IsGridView))
             UpdateCompactClass(Bounds.Width);
     }
 
@@ -51,7 +52,6 @@ public partial class CollectionView : UserControl
 
     private void UpdateCompactClass(double width)
     {
-        // iPad portrait + split view can become too narrow for side-by-side details.
         var compact = width < 1050;
         Classes.Set("compact", compact);
         var vm = ViewModel;
@@ -63,7 +63,7 @@ public partial class CollectionView : UserControl
                 : new GridLength(0.34, GridUnitType.Star);
         }
 
-        var showMainList = vm is { IsGridView: false, IsExternalSearch: false };
+        var showMainList = vm is { IsGridView: false };
         var showCompactList = compact && showMainList;
 
         CollectionDataGrid.IsVisible = showMainList && !compact;
@@ -71,9 +71,7 @@ public partial class CollectionView : UserControl
 
         CardDetailPane.IsVisible = !compact;
         if (CompactCardDetailPane != null)
-        {
-            CompactCardDetailPane.IsVisible = compact && vm is { IsGridView: false, IsExternalSearch: false };
-        }
+            CompactCardDetailPane.IsVisible = compact && vm is { IsGridView: false };
     }
 
     private void OnGridWheel(object? sender, PointerWheelEventArgs e)
@@ -83,6 +81,23 @@ public partial class CollectionView : UserControl
         {
             vm.GridZoom = Math.Clamp(vm.GridZoom + (e.Delta.Y > 0 ? 0.1 : -0.1), 0.4, 3.0);
             e.Handled = true;
+        }
+    }
+
+    private async void OnCollectionDrop(object? sender, DragEventArgs e)
+    {
+        var vm = ViewModel;
+        if (vm == null) return;
+
+        if (e.Data.Contains(BrowseDragFormats.ScryfallResult) &&
+            e.Data.Get(BrowseDragFormats.ScryfallResult) is ScryfallResultViewModel srvm)
+        {
+            await srvm.AddToCollectionCommand.ExecuteAsync(null);
+        }
+        else if (e.Data.Contains(BrowseDragFormats.MtgJsonCard) &&
+                 e.Data.Get(BrowseDragFormats.MtgJsonCard) is MtgJson.Models.DeckCard dc)
+        {
+            vm.AddMtgJsonCardToCollection(dc);
         }
     }
 
@@ -96,8 +111,6 @@ public partial class CollectionView : UserControl
             return;
         }
 
-        // Mobile single-view lifetimes do not always have a window owner available.
-        // Fall back to a modeless window so the help content still opens instead of crashing.
         win.Show();
     }
 

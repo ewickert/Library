@@ -2,7 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Library.Models;
 using Library.Services;
+using MtgJson;
 using System.Collections.ObjectModel;
+using LibraryCard = Library.Models.Card;
 
 namespace Library.ViewModels;
 
@@ -50,7 +52,14 @@ public partial class CollectionViewModel : ObservableObject
     private CancellationTokenSource? _priceCts;
     private CancellationTokenSource? _searchDebounceCts;
 
-    public CollectionViewModel(DatabaseService db, ScryfallService scryfall)
+    // ── Browse pane (Scryfall + MTGJSON) ─────────────────────────────────────
+    public BrowsePaneViewModel BrowsePane { get; }
+    [ObservableProperty] private bool _isBrowsePaneOpen;
+
+    /// <summary>Set by host (MainWindowViewModel) to navigate to and import into the deck builder.</summary>
+    public Func<MtgJson.Models.Deck, Task>? RequestCloneToDeckBuilder { get; set; }
+
+    public CollectionViewModel(DatabaseService db, ScryfallService scryfall, MtgJsonService mtgJson)
     {
         _db = db;
         _scryfall = scryfall;
@@ -58,6 +67,12 @@ public partial class CollectionViewModel : ObservableObject
         var prefs = Services.PreferencesService.Instance;
         _isGridView = prefs.CollectionIsGridView;
         _gridZoom   = prefs.CollectionGridZoom;
+
+        BrowsePane = new BrowsePaneViewModel(scryfall, mtgJson, db);
+        BrowsePane.OnCollectionChanged = () => { RefreshAvailableSets(); LoadCards(); };
+        BrowsePane.OnCloneToDeckBuilder = deck =>
+            RequestCloneToDeckBuilder?.Invoke(deck) ?? Task.CompletedTask;
+        BrowsePane.RequestClose = () => IsBrowsePaneOpen = false;
 
         RefreshAvailableSets();
         LoadCards();
@@ -138,13 +153,59 @@ public partial class CollectionViewModel : ObservableObject
         _ = Task.Delay(200, cts.Token).ContinueWith(
             _ => {
                 LoadCards();
-                if (IsExternalSearch) _ = RunExternalSearchAsync(value);
             },
             cts.Token,
             TaskContinuationOptions.OnlyOnRanToCompletion,
             TaskScheduler.FromCurrentSynchronizationContext());
     }
     partial void OnSelectedSetFilterChanged(SetItem? value) => LoadCards();
+
+    [RelayCommand]
+    private void ToggleBrowsePane() => IsBrowsePaneOpen = !IsBrowsePaneOpen;
+
+    /// <summary>Called by the collection drop target when a MTGJSON deck card is dragged in.</summary>
+    public void AddMtgJsonCardToCollection(MtgJson.Models.DeckCard card)
+    {
+        var scryfallId = card.Identifiers.ScryfallId;
+        if (!string.IsNullOrEmpty(scryfallId))
+        {
+            var existing = _db.GetOwnedCardByScryfallId(scryfallId);
+            if (existing != null)
+            {
+                existing.Quantity += 1;
+                _db.UpdateCard(existing);
+                RefreshAvailableSets();
+                LoadCards();
+                return;
+            }
+        }
+
+        _db.AddCard(new LibraryCard
+        {
+            Name = card.Name,
+            ScryfallId = scryfallId ?? string.Empty,
+            SetCode = card.SetCode,
+            SetName = string.Empty,
+            CollectorNumber = card.Number,
+            Quantity = 1,
+            IsPlaceholder = false,
+            ColorIdentity = string.Join(",", card.ColorIdentity),
+            ManaCost = card.ManaCost ?? string.Empty,
+            TypeLine = BuildMtgJsonTypeLine(card),
+            Added = DateTime.UtcNow,
+        });
+
+        RefreshAvailableSets();
+        LoadCards();
+    }
+
+    private static string BuildMtgJsonTypeLine(MtgJson.Models.DeckCard card)
+    {
+        var superAndType = string.Join(" ",
+            card.Supertypes.Concat(card.Types).Where(s => !string.IsNullOrEmpty(s)));
+        var subTypes = string.Join(" ", card.Subtypes.Where(s => !string.IsNullOrEmpty(s)));
+        return string.IsNullOrEmpty(subTypes) ? superAndType : $"{superAndType} — {subTypes}";
+    }
 
     [RelayCommand]
     private async Task BackfillMetadata()
@@ -313,142 +374,6 @@ public partial class CollectionViewModel : ObservableObject
         SelectedCard = null;
     }
 
-    // ── External Scryfall search ("not in collection") ─────────────────────────
-
-    [ObservableProperty] private bool _isExternalSearch;
-    [ObservableProperty] private bool _isExternalSearching;
-    [ObservableProperty] private bool _isExternalGridView;
-    [ObservableProperty] private bool _hasMoreExternalResults;
-    [ObservableProperty] private ObservableCollection<ScryfallResultViewModel> _externalResults = new();
-
-    private string? _externalNextPageUrl;
-    private CancellationTokenSource? _externalGridCts;
-    private CancellationTokenSource? _externalSearchCts;
-
-    partial void OnIsExternalGridViewChanged(bool value)
-    {
-        if (value) _ = LoadExternalGridImagesAsync();
-    }
-
-    private async Task LoadExternalGridImagesAsync()
-    {
-        _externalGridCts?.Cancel();
-        _externalGridCts = new CancellationTokenSource();
-        var cts = _externalGridCts;
-        foreach (var vm in ExternalResults)
-        {
-            if (cts.IsCancellationRequested) break;
-            await vm.LoadImageAsync(cts.Token);
-        }
-    }
-
-    [RelayCommand]
-    private void ToggleExternalView()
-    {
-        IsExternalGridView = !IsExternalGridView;
-    }
-
-    partial void OnIsExternalSearchChanged(bool value)
-    {
-        ExternalResults.Clear();
-        HasMoreExternalResults = false;
-        _externalNextPageUrl = null;
-        if (value && !string.IsNullOrWhiteSpace(SearchText))
-            _ = RunExternalSearchAsync(SearchText);
-    }
-
-    [RelayCommand]
-    private async Task SearchExternal()
-    {
-        await RunExternalSearchAsync(SearchText);
-    }
-
-    private async Task RunExternalSearchAsync(string query)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            ExternalResults.Clear();
-            HasMoreExternalResults = false;
-            _externalNextPageUrl = null;
-            return;
-        }
-
-        _externalSearchCts?.Cancel();
-        _externalSearchCts = new CancellationTokenSource();
-        var cts = _externalSearchCts;
-
-        IsExternalSearching = true;
-        try
-        {
-            var page = await _scryfall.SearchCardsAsync(query, cts.Token);
-            if (cts.IsCancellationRequested) return;
-
-            _externalNextPageUrl = page.NextPageUrl;
-            HasMoreExternalResults = page.HasMore;
-
-            var ownedIds = OwnedScryfallIds();
-            var vms = page.Cards
-                .Where(r => !ownedIds.Contains(r.ScryfallId))
-                .Select(r =>
-                {
-                    var vm = new ScryfallResultViewModel(r, _db, _scryfall);
-                    vm.AddedToCollection = () =>
-                    {
-                        LoadCards();
-                        _ = RunExternalSearchAsync(SearchText);
-                    };
-                    return vm;
-                })
-                .ToList();
-
-            ExternalResults = new ObservableCollection<ScryfallResultViewModel>(vms);
-            if (IsExternalGridView) _ = LoadExternalGridImagesAsync();
-        }
-        catch (OperationCanceledException) { }
-        finally { if (!cts.IsCancellationRequested) IsExternalSearching = false; }
-    }
-
-    [RelayCommand]
-    private async Task LoadMoreExternalResults()
-    {
-        if (_externalNextPageUrl == null) return;
-
-        _externalSearchCts?.Cancel();
-        _externalSearchCts = new CancellationTokenSource();
-        var cts = _externalSearchCts;
-
-        IsExternalSearching = true;
-        try
-        {
-            var page = await _scryfall.SearchCardsNextPageAsync(_externalNextPageUrl, cts.Token);
-            if (cts.IsCancellationRequested) return;
-
-            _externalNextPageUrl = page.NextPageUrl;
-            HasMoreExternalResults = page.HasMore;
-
-            var ownedIds = OwnedScryfallIds();
-            foreach (var r in page.Cards.Where(r => !ownedIds.Contains(r.ScryfallId)))
-            {
-                var vm = new ScryfallResultViewModel(r, _db, _scryfall);
-                vm.AddedToCollection = () =>
-                {
-                    LoadCards();
-                    _ = RunExternalSearchAsync(SearchText);
-                };
-                ExternalResults.Add(vm);
-            }
-
-            if (IsExternalGridView) _ = LoadExternalGridImagesAsync();
-        }
-        catch (OperationCanceledException) { }
-        finally { if (!cts.IsCancellationRequested) IsExternalSearching = false; }
-    }
-
-    private HashSet<string> OwnedScryfallIds() =>
-        _db.GetAllCards()
-           .Where(c => c.Quantity > 0 && !c.IsPlaceholder && c.ScryfallId != null)
-           .Select(c => c.ScryfallId!)
-           .ToHashSet();
 }
 
 public record SetItem(string Code, string Name)

@@ -3,6 +3,7 @@ using Avalonia.Platform.Storage;
 using Library.Services;
 using Library.ViewModels;
 using Library.Views;
+using System.IO;
 
 namespace Library;
 
@@ -28,7 +29,48 @@ public partial class MainWindow : Window
             return await picker.ShowDialog<ScryfallCardData?>(this);
         };
 
-        // Provide the File → Import CSV handler (needs StorageProvider from the window)
+        // ── Deck export ────────────────────────────────────────────────────────
+        vm.Decks.RequestExportDeck = async (suggestedName, content) =>
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export Deck",
+                SuggestedFileName = suggestedName,
+                FileTypeChoices = [new FilePickerFileType("Text Files") { Patterns = ["*.txt"] }]
+            });
+            if (file == null) return null;
+
+            await using var stream = await file.OpenWriteAsync();
+            await using var writer = new StreamWriter(stream, System.Text.Encoding.UTF8);
+            await writer.WriteAsync(content);
+
+            return file.TryGetLocalPath();
+        };
+
+        // ── Deck share (write to temp → OS share sheet) ────────────────────────
+        vm.Decks.RequestShareDeck = async (suggestedName, content) =>
+        {
+            var tempPath = Path.Combine(Path.GetTempPath(), suggestedName);
+            await File.WriteAllTextAsync(tempPath, content, System.Text.Encoding.UTF8);
+            MacShareHelper.ShareFile(tempPath, TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
+        };
+
+        // ── Deck import ────────────────────────────────────────────────────────
+        vm.Decks.RequestImportDeck = async () =>
+        {
+            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Import Deck",
+                AllowMultiple = false,
+                FileTypeFilter = [new FilePickerFileType("Deck Files") { Patterns = ["*.txt", "*.dec"] }]
+            });
+            if (files.Count == 0) return null;
+
+            var path = files[0].TryGetLocalPath();
+            return path == null ? null : await File.ReadAllTextAsync(path);
+        };
+
+        // ── File → Import CSV ──────────────────────────────────────────────────
         vm.RequestImportCsv = async () =>
         {
             var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

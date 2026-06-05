@@ -175,6 +175,20 @@
               IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
               <TextBlock Text="📈 Stats" FontSize="12" />
             </Button>
+          <Button Command="{Binding ShareDeckCommand}" Padding="6,3"
+                  IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  ToolTip.Tip="Share deck via the OS share menu">
+            <TextBlock Text="⇧ Share" FontSize="12" />
+          </Button>
+          <Button Command="{Binding ExportDeckCommand}" Padding="6,3"
+                  IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  ToolTip.Tip="Save deck to a text file">
+            <TextBlock Text="↑ Export" FontSize="12" />
+          </Button>
+          <Button Command="{Binding ImportDeckCommand}" Padding="6,3"
+                  ToolTip.Tip="Import a deck from a text file">
+            <TextBlock Text="↓ Import" FontSize="12" />
+          </Button>
           <Button Content="Delete Deck" Command="{Binding DeleteDeckCommand}"
                   Background="#CC3300" Foreground="White" />
         </StackPanel>
@@ -193,6 +207,15 @@
                   Command="{Binding ClearDuplicateWarningCommand}"
                   Padding="6,2" FontSize="11" Margin="8,0,0,0" VerticalAlignment="Center" />
         </Grid>
+      </Border>
+
+      <!-- Export / import status banner -->
+      <Border Grid.Row="2"
+              IsVisible="{Binding DeckTransferStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+              Background="#1E3A2F" BorderBrush="#2D6E50" BorderThickness="1"
+              CornerRadius="6" Padding="10,6" Margin="0,0,0,6">
+        <TextBlock Text="{Binding DeckTransferStatus}"
+                   FontSize="12" Foreground="#7DCFAA" VerticalAlignment="Center" />
       </Border>
 
       <!-- Commander info bar (Commander format only) -->

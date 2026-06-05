@@ -143,6 +143,24 @@ public class DatabaseService
         return reader.Read() ? ReadCard(reader) : null;
     }
 
+    /// <summary>Returns the first owned non-placeholder card with this name (case-insensitive), if any.</summary>
+    public Card? GetCardByName(string name)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT * FROM Cards
+            WHERE Name = $name COLLATE NOCASE
+              AND (IsPlaceholder = 0 OR IsPlaceholder IS NULL)
+            ORDER BY Id
+            LIMIT 1
+            """;
+        cmd.Parameters.AddWithValue("$name", name);
+        using var reader = cmd.ExecuteReader();
+        return reader.Read() ? ReadCard(reader) : null;
+    }
+
     /// <summary>Returns the first owned non-placeholder card with this Scryfall ID, if any.</summary>
     public Card? GetOwnedCardByScryfallId(string scryfallId)
     {

@@ -200,6 +200,85 @@ public partial class DecksViewModel : ObservableObject
     [RelayCommand]
     private void ClearDuplicateWarning() => DuplicateWarning = null;
 
+    // ── Deck export / share / import ─────────────────────────────────────────
+    /// <summary>Set by the host window. Receives (suggestedFileName, textContent), returns saved path or null if cancelled.</summary>
+    public Func<string, string, Task<string?>>? RequestExportDeck { get; set; }
+    /// <summary>Set by the host window. Writes deck text to a temp file and shows the OS share sheet.</summary>
+    public Func<string, string, Task>? RequestShareDeck { get; set; }
+    /// <summary>Set by the host window. Returns text content of the chosen file, or null if cancelled.</summary>
+    public Func<Task<string?>>? RequestImportDeck { get; set; }
+
+    [ObservableProperty] private string _deckTransferStatus = string.Empty;
+
+    [RelayCommand]
+    private async Task ExportDeck()
+    {
+        if (SelectedDeck == null) return;
+        var deck = _db.GetDeckWithCards(SelectedDeck.Id);
+        if (deck == null) return;
+
+        var text = Services.DeckTextService.Export(deck);
+        var fileName = Services.DeckTextService.SuggestedFileName(deck.Name);
+
+        var savedPath = await (RequestExportDeck?.Invoke(fileName, text) ?? Task.FromResult<string?>(null));
+        if (savedPath == null) return; // cancelled
+        DeckTransferStatus = $"Exported \"{deck.Name}\"";
+        _ = AutoClearTransferStatus(DeckTransferStatus);
+    }
+
+    [RelayCommand]
+    private async Task ShareDeck()
+    {
+        if (SelectedDeck == null || RequestShareDeck == null) return;
+        var deck = _db.GetDeckWithCards(SelectedDeck.Id);
+        if (deck == null) return;
+
+        var text = Services.DeckTextService.Export(deck);
+        var fileName = Services.DeckTextService.SuggestedFileName(deck.Name);
+        await RequestShareDeck(fileName, text);
+    }
+
+    [RelayCommand]
+    private async Task ImportDeck()
+    {
+        var text = await (RequestImportDeck?.Invoke() ?? Task.FromResult<string?>(null));
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        var result = Services.DeckTextService.Parse(text);
+
+        var deck = new Deck
+        {
+            Name = result.DeckName,
+            Format = result.Format,
+            Created = DateTime.UtcNow
+        };
+        var deckId = _db.AddDeck(deck);
+
+        var notFound = new List<string>();
+        foreach (var pc in result.Cards)
+        {
+            var card = _db.GetCardByName(pc.Name);
+            if (card == null) { notFound.Add(pc.Name); continue; }
+            _db.AddCardToDeck(deckId, card.Id, pc.Quantity, pc.IsSideboard, pc.IsCommander);
+        }
+
+        LoadDecks();
+        SelectedDeck = Decks.FirstOrDefault(d => d.Id == deckId);
+
+        var msg = $"Imported \"{result.DeckName}\"";
+        if (notFound.Count > 0)
+            msg += $" — {notFound.Count} card(s) not in collection: {string.Join(", ", notFound.Take(3))}{(notFound.Count > 3 ? "…" : "")}";
+        DeckTransferStatus = msg;
+        _ = AutoClearTransferStatus(msg);
+    }
+
+    private async Task AutoClearTransferStatus(string expected)
+    {
+        await Task.Delay(6000);
+        if (DeckTransferStatus == expected)
+            DeckTransferStatus = string.Empty;
+    }
+
     private void NotifyDeckCount()
     {
         OnPropertyChanged(nameof(DeckTotalCardCount));

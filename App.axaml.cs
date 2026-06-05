@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Library.Services;
 using Library.ViewModels;
 using Library.Views;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace Library;
@@ -107,9 +108,55 @@ public partial class App : Application
                 SetImportStatus(summary, false);
             };
 
+            // ── Deck export (mobile: native save dialog) ──────────────────────
+            vm.Decks.RequestExportDeck = async (suggestedName, content) =>
+            {
+                var topLevel = TopLevel.GetTopLevel(mainView);
+                if (topLevel?.StorageProvider is null) return null;
+
+                var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+                {
+                    Title = "Export Deck",
+                    SuggestedFileName = suggestedName,
+                    FileTypeChoices = [new FilePickerFileType("Text Files") { Patterns = ["*.txt"] }]
+                });
+                if (file == null) return null;
+
+                await using var writeStream = await file.OpenWriteAsync();
+                await using var writer = new StreamWriter(writeStream, System.Text.Encoding.UTF8);
+                await writer.WriteAsync(content);
+                return file.TryGetLocalPath() ?? suggestedName;
+            };
+
+            // ── Deck share (mobile: copy to clipboard) ─────────────────────────
+            vm.Decks.RequestShareDeck = async (_, content) =>
+            {
+                var topLevel = TopLevel.GetTopLevel(mainView);
+                var clipboard = topLevel?.Clipboard;
+                if (clipboard != null)
+                    await clipboard.SetTextAsync(content);
+            };
+
+            // ── Deck import (mobile: open file picker) ─────────────────────────
+            vm.Decks.RequestImportDeck = async () =>
+            {
+                var topLevel = TopLevel.GetTopLevel(mainView);
+                if (topLevel?.StorageProvider is null) return null;
+
+                var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    Title = "Import Deck",
+                    AllowMultiple = false,
+                    FileTypeFilter = [new FilePickerFileType("Deck Files") { Patterns = ["*.txt", "*.dec"] }]
+                });
+                if (files.Count == 0) return null;
+
+                await using var stream = await files[0].OpenReadAsync();
+                using var reader = new StreamReader(stream);
+                return await reader.ReadToEndAsync();
+            };
+
             singleView.MainView = mainView;
-
-
         }
 
         Library.Services.ThemeService.Instance.LoadSaved();

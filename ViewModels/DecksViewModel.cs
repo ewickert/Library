@@ -977,14 +977,33 @@ public partial class DecksViewModel : ObservableObject
             RemoveCardFromDeck(match);
     }
 
-    // ── External Scryfall search for collection pane ──────────────────────────
+    // ── Scryfall search pane ──────────────────────────────────────────────────
 
-    [ObservableProperty] private bool _isCollectionExternalSearch;
+    [ObservableProperty] private bool _isScryfallPaneOpen;
     [ObservableProperty] private bool _isCollectionExternalSearching;
     [ObservableProperty] private bool _isCollectionExternalGridView;
+    [ObservableProperty] private bool _hasMoreExternalResults;
     [ObservableProperty] private ObservableCollection<ScryfallResultViewModel> _collectionExternalResults = new();
+    [ObservableProperty] private string _scryfallSearchText = string.Empty;
+    private string? _externalNextPageUrl;
     private CancellationTokenSource? _externalSearchCts;
     private CancellationTokenSource? _externalGridCts;
+    private CancellationTokenSource? _scryfallDebounceCts;
+
+    [RelayCommand]
+    private void ToggleScryfallPane() => IsScryfallPaneOpen = !IsScryfallPaneOpen;
+
+    partial void OnScryfallSearchTextChanged(string value)
+    {
+        _scryfallDebounceCts?.Cancel();
+        _scryfallDebounceCts = new CancellationTokenSource();
+        var cts = _scryfallDebounceCts;
+        _ = Task.Delay(300, cts.Token).ContinueWith(
+            _ => { _ = RunExternalSearchAsync(value); },
+            cts.Token,
+            TaskContinuationOptions.OnlyOnRanToCompletion,
+            TaskScheduler.FromCurrentSynchronizationContext());
+    }
 
     partial void OnIsCollectionExternalGridViewChanged(bool value)
     {
@@ -1003,32 +1022,16 @@ public partial class DecksViewModel : ObservableObject
         }
     }
 
-    partial void OnIsCollectionExternalSearchChanged(bool value)
-    {
-        CollectionExternalResults.Clear();
-        if (value && !string.IsNullOrWhiteSpace(CollectionSearchText))
-            _ = RunExternalSearchAsync(CollectionSearchText);
-    }
-
     partial void OnCollectionSearchTextChanged(string value)
     {
         _searchDebounceCts?.Cancel();
         _searchDebounceCts = new CancellationTokenSource();
         var cts = _searchDebounceCts;
         _ = Task.Delay(200, cts.Token).ContinueWith(
-            _ => {
-                RefreshCollectionFilter();
-                if (IsCollectionExternalSearch) _ = RunExternalSearchAsync(value);
-            },
+            _ => RefreshCollectionFilter(),
             cts.Token,
             TaskContinuationOptions.OnlyOnRanToCompletion,
             TaskScheduler.FromCurrentSynchronizationContext());
-    }
-
-    [RelayCommand]
-    private async Task SearchCollectionExternal()
-    {
-        await RunExternalSearchAsync(CollectionSearchText);
     }
 
     [RelayCommand]
@@ -1039,7 +1042,13 @@ public partial class DecksViewModel : ObservableObject
 
     private async Task RunExternalSearchAsync(string query)
     {
-        if (string.IsNullOrWhiteSpace(query)) { CollectionExternalResults.Clear(); return; }
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            CollectionExternalResults.Clear();
+            HasMoreExternalResults = false;
+            _externalNextPageUrl = null;
+            return;
+        }
 
         _externalSearchCts?.Cancel();
         _externalSearchCts = new CancellationTokenSource();
@@ -1048,16 +1057,14 @@ public partial class DecksViewModel : ObservableObject
         IsCollectionExternalSearching = true;
         try
         {
-            var results = await _scryfall.SearchCardsAsync(query, cts.Token);
+            var page = await _scryfall.SearchCardsAsync(query, cts.Token);
             if (cts.IsCancellationRequested) return;
 
-            var ownedIds = _db.GetAllCards()
-                              .Where(c => c.Quantity > 0 && !c.IsPlaceholder)
-                              .Select(c => c.ScryfallId)
-                              .Where(id => id != null)
-                              .ToHashSet()!;
+            _externalNextPageUrl = page.NextPageUrl;
+            HasMoreExternalResults = page.HasMore;
 
-            var vms = results
+            var ownedIds = OwnedScryfallIds();
+            var vms = page.Cards
                 .Where(r => !ownedIds.Contains(r.ScryfallId))
                 .Select(r => new ScryfallResultViewModel(r, _db, _scryfall))
                 .ToList();
@@ -1068,4 +1075,38 @@ public partial class DecksViewModel : ObservableObject
         catch (OperationCanceledException) { }
         finally { if (!cts.IsCancellationRequested) IsCollectionExternalSearching = false; }
     }
+
+    [RelayCommand]
+    private async Task LoadMoreExternalResults()
+    {
+        if (_externalNextPageUrl == null) return;
+
+        _externalSearchCts?.Cancel();
+        _externalSearchCts = new CancellationTokenSource();
+        var cts = _externalSearchCts;
+
+        IsCollectionExternalSearching = true;
+        try
+        {
+            var page = await _scryfall.SearchCardsNextPageAsync(_externalNextPageUrl, cts.Token);
+            if (cts.IsCancellationRequested) return;
+
+            _externalNextPageUrl = page.NextPageUrl;
+            HasMoreExternalResults = page.HasMore;
+
+            var ownedIds = OwnedScryfallIds();
+            foreach (var r in page.Cards.Where(r => !ownedIds.Contains(r.ScryfallId)))
+                CollectionExternalResults.Add(new ScryfallResultViewModel(r, _db, _scryfall));
+
+            if (IsCollectionExternalGridView) _ = LoadExternalGridImagesAsync();
+        }
+        catch (OperationCanceledException) { }
+        finally { if (!cts.IsCancellationRequested) IsCollectionExternalSearching = false; }
+    }
+
+    private HashSet<string> OwnedScryfallIds() =>
+        _db.GetAllCards()
+           .Where(c => c.Quantity > 0 && !c.IsPlaceholder && c.ScryfallId != null)
+           .Select(c => c.ScryfallId!)
+           .ToHashSet();
 }

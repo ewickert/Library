@@ -55,7 +55,7 @@ public partial class ScryfallResultViewModel : ObservableObject
             Image = await _scryfall.GetCardImageAsync(Data.ScryfallId, ct);
         }
         catch (OperationCanceledException) { }
-        finally { if (!ct.IsCancellationRequested) IsLoading = false; }
+        finally { IsLoading = false; }
     }
 
     [RelayCommand]

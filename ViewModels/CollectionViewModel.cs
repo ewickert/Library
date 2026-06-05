@@ -318,9 +318,12 @@ public partial class CollectionViewModel : ObservableObject
     [ObservableProperty] private bool _isExternalSearch;
     [ObservableProperty] private bool _isExternalSearching;
     [ObservableProperty] private bool _isExternalGridView;
+    [ObservableProperty] private bool _hasMoreExternalResults;
     [ObservableProperty] private ObservableCollection<ScryfallResultViewModel> _externalResults = new();
 
+    private string? _externalNextPageUrl;
     private CancellationTokenSource? _externalGridCts;
+    private CancellationTokenSource? _externalSearchCts;
 
     partial void OnIsExternalGridViewChanged(bool value)
     {
@@ -339,8 +342,6 @@ public partial class CollectionViewModel : ObservableObject
         }
     }
 
-    private CancellationTokenSource? _externalSearchCts;
-
     [RelayCommand]
     private void ToggleExternalView()
     {
@@ -350,6 +351,8 @@ public partial class CollectionViewModel : ObservableObject
     partial void OnIsExternalSearchChanged(bool value)
     {
         ExternalResults.Clear();
+        HasMoreExternalResults = false;
+        _externalNextPageUrl = null;
         if (value && !string.IsNullOrWhiteSpace(SearchText))
             _ = RunExternalSearchAsync(SearchText);
     }
@@ -362,7 +365,13 @@ public partial class CollectionViewModel : ObservableObject
 
     private async Task RunExternalSearchAsync(string query)
     {
-        if (string.IsNullOrWhiteSpace(query)) { ExternalResults.Clear(); return; }
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            ExternalResults.Clear();
+            HasMoreExternalResults = false;
+            _externalNextPageUrl = null;
+            return;
+        }
 
         _externalSearchCts?.Cancel();
         _externalSearchCts = new CancellationTokenSource();
@@ -371,17 +380,14 @@ public partial class CollectionViewModel : ObservableObject
         IsExternalSearching = true;
         try
         {
-            var results = await _scryfall.SearchCardsAsync(query, cts.Token);
+            var page = await _scryfall.SearchCardsAsync(query, cts.Token);
             if (cts.IsCancellationRequested) return;
 
-            // Get all ScryfallIds already owned (quantity > 0) to filter
-            var ownedIds = _db.GetAllCards()
-                              .Where(c => c.Quantity > 0 && !c.IsPlaceholder)
-                              .Select(c => c.ScryfallId)
-                              .Where(id => id != null)
-                              .ToHashSet()!;
+            _externalNextPageUrl = page.NextPageUrl;
+            HasMoreExternalResults = page.HasMore;
 
-            var vms = results
+            var ownedIds = OwnedScryfallIds();
+            var vms = page.Cards
                 .Where(r => !ownedIds.Contains(r.ScryfallId))
                 .Select(r =>
                 {
@@ -401,6 +407,48 @@ public partial class CollectionViewModel : ObservableObject
         catch (OperationCanceledException) { }
         finally { if (!cts.IsCancellationRequested) IsExternalSearching = false; }
     }
+
+    [RelayCommand]
+    private async Task LoadMoreExternalResults()
+    {
+        if (_externalNextPageUrl == null) return;
+
+        _externalSearchCts?.Cancel();
+        _externalSearchCts = new CancellationTokenSource();
+        var cts = _externalSearchCts;
+
+        IsExternalSearching = true;
+        try
+        {
+            var page = await _scryfall.SearchCardsNextPageAsync(_externalNextPageUrl, cts.Token);
+            if (cts.IsCancellationRequested) return;
+
+            _externalNextPageUrl = page.NextPageUrl;
+            HasMoreExternalResults = page.HasMore;
+
+            var ownedIds = OwnedScryfallIds();
+            foreach (var r in page.Cards.Where(r => !ownedIds.Contains(r.ScryfallId)))
+            {
+                var vm = new ScryfallResultViewModel(r, _db, _scryfall);
+                vm.AddedToCollection = () =>
+                {
+                    LoadCards();
+                    _ = RunExternalSearchAsync(SearchText);
+                };
+                ExternalResults.Add(vm);
+            }
+
+            if (IsExternalGridView) _ = LoadExternalGridImagesAsync();
+        }
+        catch (OperationCanceledException) { }
+        finally { if (!cts.IsCancellationRequested) IsExternalSearching = false; }
+    }
+
+    private HashSet<string> OwnedScryfallIds() =>
+        _db.GetAllCards()
+           .Where(c => c.Quantity > 0 && !c.IsPlaceholder && c.ScryfallId != null)
+           .Select(c => c.ScryfallId!)
+           .ToHashSet();
 }
 
 public record SetItem(string Code, string Name)

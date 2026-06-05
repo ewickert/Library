@@ -88,8 +88,8 @@ public partial class AddEditCardViewModel : ObservableObject
         IsSearching = true;
         try
         {
-            var results = await _scryfall.SearchCardsAsync(SearchQuery, _searchCts.Token);
-            ScryfallResults = new ObservableCollection<ScryfallCardData>(results);
+            var page = await _scryfall.SearchCardsAsync(SearchQuery, _searchCts.Token);
+            ScryfallResults = new ObservableCollection<ScryfallCardData>(page.Cards);
         }
         catch (OperationCanceledException) { }
         finally { IsSearching = false; }

@@ -230,26 +230,40 @@ public class ScryfallService
         catch { return null; }
     }
 
-    public async Task<List<ScryfallCardData>> SearchCardsAsync(string query, CancellationToken ct = default)
+    public Task<ScryfallPageResult> SearchCardsAsync(string query, CancellationToken ct = default)
+        => FetchSearchPageAsync($"cards/search?q={Uri.EscapeDataString(query)}&order=name", ct);
+
+    public Task<ScryfallPageResult> SearchCardsNextPageAsync(string nextPageUrl, CancellationToken ct = default)
+        => FetchSearchPageAsync(nextPageUrl, ct);
+
+    private async Task<ScryfallPageResult> FetchSearchPageAsync(string relativeUrl, CancellationToken ct)
     {
         try
         {
-            var json = await ApiGetAsync($"cards/search?q={Uri.EscapeDataString(query)}&order=name", ct);
-            if (json == null) return [];
+            var json = await ApiGetAsync(relativeUrl, ct);
+            if (json == null) return new ScryfallPageResult([], false, null);
             using var doc = JsonDocument.Parse(json);
-            var results = new List<ScryfallCardData>();
+            var cards = new List<ScryfallCardData>();
             if (doc.RootElement.TryGetProperty("data", out var data))
-            {
                 foreach (var card in data.EnumerateArray())
                 {
                     var parsed = ParseCardData(card);
-                    if (parsed != null) results.Add(parsed);
-                    if (results.Count >= 20) break;
+                    if (parsed != null) cards.Add(parsed);
                 }
+
+            string? nextUrl = null;
+            if (doc.RootElement.TryGetProperty("has_more", out var hasMore) && hasMore.GetBoolean()
+                && doc.RootElement.TryGetProperty("next_page", out var nextPage))
+            {
+                var next = nextPage.GetString();
+                const string baseUrl = "https://api.scryfall.com/";
+                if (next != null)
+                    nextUrl = next.StartsWith(baseUrl) ? next[baseUrl.Length..] : next;
             }
-            return results;
+
+            return new ScryfallPageResult(cards, nextUrl != null, nextUrl);
         }
-        catch { return []; }
+        catch { return new ScryfallPageResult([], false, null); }
     }
 
     /// <summary>
@@ -582,6 +596,12 @@ public class ScryfallCardData
     /// <summary>Type line, e.g. "Legendary Creature — Human Wizard".</summary>
     public string TypeLine { get; set; } = string.Empty;
 }
+
+/// <summary>One page of Scryfall card search results, with optional next-page URL for pagination.</summary>
+public record ScryfallPageResult(
+    List<ScryfallCardData> Cards,
+    bool HasMore,
+    string? NextPageUrl);
 
 /// <summary>Result of a Scryfall full-syntax search: the set of matching Scryfall IDs and card names.</summary>
 public record ScryfallSearchResult(

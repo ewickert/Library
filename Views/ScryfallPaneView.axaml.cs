@@ -6,12 +6,12 @@ using Library.ViewModels;
 
 namespace Library.Views;
 
-public partial class CollectionPaneView : UserControl
+public partial class ScryfallPaneView : UserControl
 {
-    private CollectionPaneWindow? _floatingWindow;
+    private ScryfallPaneWindow? _floatingWindow;
 
     public static readonly StyledProperty<bool> IsFloatingProperty =
-        AvaloniaProperty.Register<CollectionPaneView, bool>(nameof(IsFloating));
+        AvaloniaProperty.Register<ScryfallPaneView, bool>(nameof(IsFloating));
 
     public bool IsFloating
     {
@@ -24,7 +24,7 @@ public partial class CollectionPaneView : UserControl
         }
     }
 
-    public CollectionPaneView()
+    public ScryfallPaneView()
     {
         InitializeComponent();
         PopOutButton.IsVisible = !IsFloating;
@@ -33,7 +33,7 @@ public partial class CollectionPaneView : UserControl
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        CollectionGridScrollViewer.AddHandler(PointerWheelChangedEvent, OnGridWheel, RoutingStrategies.Tunnel);
+        ScryfallGridScrollViewer.AddHandler(PointerWheelChangedEvent, OnGridWheel, RoutingStrategies.Tunnel);
     }
 
     private void OnGridWheel(object? sender, PointerWheelEventArgs e)
@@ -46,12 +46,6 @@ public partial class CollectionPaneView : UserControl
         }
     }
 
-    private async void OnSearchHelpClick(object? sender, RoutedEventArgs e)
-    {
-        var win = new SearchHelpWindow();
-        await win.ShowDialog(TopLevel.GetTopLevel(this) as Window ?? throw new InvalidOperationException());
-    }
-
     private void OnPopOutClick(object? sender, RoutedEventArgs e)
     {
         if (_floatingWindow != null)
@@ -62,9 +56,9 @@ public partial class CollectionPaneView : UserControl
 
         if (DataContext is not DecksViewModel vm) return;
 
-        vm.IsCollectionPaneOpen = false;
+        vm.IsScryfallPaneOpen = false;
 
-        _floatingWindow = new CollectionPaneWindow();
+        _floatingWindow = new ScryfallPaneWindow();
         _floatingWindow.DataContext = vm;
         _floatingWindow.Closed += OnFloatingWindowClosed;
         _floatingWindow.Show(TopLevel.GetTopLevel(this) as Window);
@@ -74,11 +68,9 @@ public partial class CollectionPaneView : UserControl
     {
         _floatingWindow = null;
         if (DataContext is DecksViewModel vm)
-            vm.IsCollectionPaneOpen = true;
+            vm.IsScryfallPaneOpen = true;
     }
 
-    // Exposed for drag-source registration in DecksView
-    internal ItemsControl ListPane => CollectionListPane;
-    internal ItemsControl GridPane => CollectionGridPane;
-    internal ScrollViewer GridScroller => CollectionGridScrollViewer;
+    internal ItemsControl ListPane => ScryfallResultsListView;
+    internal ItemsControl GridPane => ScryfallResultsGridView;
 }

@@ -55,7 +55,7 @@
   </UserControl.Styles>
 
   <!--
-    Layout: [Deck Sidebar 220] | [Deck Content *] | [Collection Pane 290 (collapsible)]
+    Layout: [Sidebar] | [Deck Content *] | [Collection] | [Scryfall] | [Stats]
   -->
   <Panel>
   <Grid x:Name="RootGrid">
@@ -64,6 +64,8 @@
       <ColumnDefinition Width="*" MinWidth="200" />
       <ColumnDefinition Width="5" />
       <ColumnDefinition Width="0.34*" MinWidth="180" MaxWidth="340" />
+      <ColumnDefinition Width="0" />
+      <ColumnDefinition Width="0" MinWidth="0" />
       <ColumnDefinition Width="0" />
       <ColumnDefinition Width="0" MinWidth="0" />
     </Grid.ColumnDefinitions>
@@ -163,6 +165,10 @@
           <Button Command="{Binding ToggleCollectionPaneCommand}" Padding="6,3"
                   ToolTip.Tip="Toggle collection pane">
             <TextBlock Text="📚 Collection" FontSize="12" />
+          </Button>
+          <Button Command="{Binding ToggleScryfallPaneCommand}" Padding="6,3"
+                  ToolTip.Tip="Toggle Scryfall search pane">
+            <TextBlock Text="🔍 Scryfall" FontSize="12" />
           </Button>
             <Button Command="{Binding ToggleStatsPaneCommand}" Padding="6,3"
               ToolTip.Tip="Toggle deck stats pane"
@@ -593,17 +599,34 @@
       <views:CollectionPaneView x:Name="CollectionPane" />
     </Border>
 
-    <!-- Splitter between collection pane and stats pane -->
+    <!-- Splitter between collection pane and Scryfall pane -->
     <GridSplitter Grid.Column="4"
+                  ResizeDirection="Columns"
+                  Background="Transparent"
+                  Width="5" HorizontalAlignment="Stretch"
+                  IsVisible="{Binding IsScryfallPaneOpen}" />
+
+    <!-- ══════════════════════════════════════════════════════════
+         Col 5: Scryfall search pane (collapsible / pop-out)
+         ══════════════════════════════════════════════════════════ -->
+    <Border Grid.Column="5" Margin="{Binding SidePaneBottomMargin}"
+            Background="{DynamicResource ThemeSurfaceBrush}"
+            CornerRadius="8"
+            IsVisible="{Binding IsScryfallPaneOpen}">
+      <views:ScryfallPaneView x:Name="ScryfallPane" />
+    </Border>
+
+    <!-- Splitter between Scryfall pane and stats pane -->
+    <GridSplitter Grid.Column="6"
                   ResizeDirection="Columns"
                   Background="Transparent"
                   Width="5" HorizontalAlignment="Stretch"
                   IsVisible="{Binding IsStatsPaneOpen}" />
 
     <!-- ══════════════════════════════════════════════════════════
-         Col 5: Deck stats pane (collapsible)
+         Col 7: Deck stats pane (collapsible)
          ══════════════════════════════════════════════════════════ -->
-    <Border Grid.Column="5" Margin="{Binding SidePaneBottomMargin}"
+    <Border Grid.Column="7" Margin="{Binding SidePaneBottomMargin}"
             Background="{DynamicResource ThemeSurfaceBrush}"
             CornerRadius="8"
             IsVisible="{Binding IsStatsPaneOpen}">
@@ -746,7 +769,7 @@
     </Border>
 
   <!-- Drag preview overlay (spans full Grid, sits on top, no hit testing) -->
-  <Canvas x:Name="DragOverlay" Grid.ColumnSpan="6" IsHitTestVisible="False" IsVisible="False">
+  <Canvas x:Name="DragOverlay" Grid.ColumnSpan="8" IsHitTestVisible="False" IsVisible="False">
     <Border x:Name="DragPreview" Width="90" Height="126" CornerRadius="6"
             ClipToBounds="True" Opacity="0.92"
             Background="{DynamicResource SystemControlBackgroundBaseMediumBrush}">

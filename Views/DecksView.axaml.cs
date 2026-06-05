@@ -49,11 +49,11 @@ public partial class DecksView : UserControl
         if (_subscribedVm != null)
         {
             _subscribedVm.PropertyChanged += OnVmPropertyChanged;
-            UpdatePaneColumns(_subscribedVm.IsDeckSidebarOpen, _subscribedVm.IsCollectionPaneOpen, _subscribedVm.IsStatsPaneOpen);
+            UpdatePaneColumns(_subscribedVm.IsDeckSidebarOpen, _subscribedVm.IsCollectionPaneOpen, _subscribedVm.IsScryfallPaneOpen, _subscribedVm.IsStatsPaneOpen);
         }
         else
         {
-            UpdatePaneColumns(true, false, false);
+            UpdatePaneColumns(true, false, false, false);
         }
 
         ApplyResponsiveLayout(Bounds.Width);
@@ -66,20 +66,24 @@ public partial class DecksView : UserControl
 
         if (e.PropertyName == nameof(DecksViewModel.IsCollectionPaneOpen) ||
             e.PropertyName == nameof(DecksViewModel.IsStatsPaneOpen) ||
-            e.PropertyName == nameof(DecksViewModel.IsDeckSidebarOpen))
+            e.PropertyName == nameof(DecksViewModel.IsDeckSidebarOpen) ||
+            e.PropertyName == nameof(DecksViewModel.IsScryfallPaneOpen))
         {
-            UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsStatsPaneOpen);
+            UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsScryfallPaneOpen, vm.IsStatsPaneOpen);
         }
     }
 
-    private void UpdatePaneColumns(bool sidebarOpen, bool collectionOpen, bool statsOpen)
+    private void UpdatePaneColumns(bool sidebarOpen, bool collectionOpen, bool scryfallOpen, bool statsOpen)
     {
-        var deckListColumn = RootGrid.ColumnDefinitions[0];
-        var deckContentColumn = RootGrid.ColumnDefinitions[1];
-        var collectionColumn = RootGrid.ColumnDefinitions[3];
+        // Col indices: 0=sidebar, 1=content, 2=splitter, 3=collection, 4=splitter, 5=scryfall, 6=splitter, 7=stats
+        var deckListColumn         = RootGrid.ColumnDefinitions[0];
+        var deckContentColumn      = RootGrid.ColumnDefinitions[1];
         var deckCollectionSplitter = RootGrid.ColumnDefinitions[2];
-        var collectionStatsSplitter = RootGrid.ColumnDefinitions[4];
-        var statsColumn = RootGrid.ColumnDefinitions[5];
+        var collectionColumn       = RootGrid.ColumnDefinitions[3];
+        var collectionScryfallSplitter = RootGrid.ColumnDefinitions[4];
+        var scryfallColumn         = RootGrid.ColumnDefinitions[5];
+        var scryfallStatsSplitter  = RootGrid.ColumnDefinitions[6];
+        var statsColumn            = RootGrid.ColumnDefinitions[7];
 
         if (!sidebarOpen)
         {
@@ -90,9 +94,8 @@ public partial class DecksView : UserControl
         }
         else if (_isCompactPhoneLayout)
         {
-            if (collectionOpen || statsOpen)
+            if (collectionOpen || scryfallOpen || statsOpen)
             {
-                // Reclaim horizontal room on phones while a side pane is open.
                 deckListColumn.Width = new GridLength(0);
                 deckListColumn.MinWidth = 0;
                 deckListColumn.MaxWidth = double.PositiveInfinity;
@@ -103,7 +106,6 @@ public partial class DecksView : UserControl
                 deckListColumn.MinWidth = 120;
                 deckListColumn.MaxWidth = 210;
             }
-
             deckContentColumn.MinWidth = 150;
         }
         else
@@ -114,34 +116,27 @@ public partial class DecksView : UserControl
             deckContentColumn.MinWidth = 200;
         }
 
-        if (collectionOpen)
-        {
-            collectionColumn.Width = new GridLength(0.34, GridUnitType.Star);
-            collectionColumn.MinWidth = 180;
-            collectionColumn.MaxWidth = 340;
-            deckCollectionSplitter.Width = new GridLength(5);
-        }
-        else
-        {
-            collectionColumn.Width = new GridLength(0);
-            collectionColumn.MinWidth = 0;
-            collectionColumn.MaxWidth = double.PositiveInfinity;
-            deckCollectionSplitter.Width = new GridLength(0);
-        }
+        SetPaneColumn(collectionColumn, deckCollectionSplitter, collectionOpen, 0.34, 180, 340);
+        SetPaneColumn(scryfallColumn,   collectionScryfallSplitter, scryfallOpen, 0.34, 180, 340);
+        SetPaneColumn(statsColumn,      scryfallStatsSplitter,  statsOpen,   0.28, 220, 360);
+    }
 
-        if (statsOpen)
+    private static void SetPaneColumn(ColumnDefinition col, ColumnDefinition splitter, bool open,
+        double star, double minWidth, double maxWidth)
+    {
+        if (open)
         {
-            statsColumn.Width = new GridLength(0.28, GridUnitType.Star);
-            statsColumn.MinWidth = 220;
-            statsColumn.MaxWidth = 360;
-            collectionStatsSplitter.Width = new GridLength(5);
+            col.Width = new GridLength(star, GridUnitType.Star);
+            col.MinWidth = minWidth;
+            col.MaxWidth = maxWidth;
+            splitter.Width = new GridLength(5);
         }
         else
         {
-            statsColumn.Width = new GridLength(0);
-            statsColumn.MinWidth = 0;
-            statsColumn.MaxWidth = double.PositiveInfinity;
-            collectionStatsSplitter.Width = new GridLength(0);
+            col.Width = new GridLength(0);
+            col.MinWidth = 0;
+            col.MaxWidth = double.PositiveInfinity;
+            splitter.Width = new GridLength(0);
         }
     }
 
@@ -159,7 +154,6 @@ public partial class DecksView : UserControl
 
         if (shouldCollapseCollectionPane)
         {
-            // Only auto-collapse once per cycle — don't fight the user if they manually re-open it
             if (vm.IsCollectionPaneOpen && !_autoCollapsedCollectionPane)
             {
                 vm.IsCollectionPaneOpen = false;
@@ -168,14 +162,13 @@ public partial class DecksView : UserControl
         }
         else
         {
-            // Screen is wide enough — restore if we auto-collapsed, and reset the flag
             if (_autoCollapsedCollectionPane && !vm.IsCollectionPaneOpen)
                 vm.IsCollectionPaneOpen = true;
 
             _autoCollapsedCollectionPane = false;
         }
 
-        UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsStatsPaneOpen);
+        UpdatePaneColumns(vm.IsDeckSidebarOpen, vm.IsCollectionPaneOpen, vm.IsScryfallPaneOpen, vm.IsStatsPaneOpen);
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -189,12 +182,12 @@ public partial class DecksView : UserControl
         // Drag sources — tunnel so we get the press before inner controls (buttons etc.)
         CollectionPane.ListPane.AddHandler(PointerPressedEvent, OnCollectionPointerPressed, RoutingStrategies.Tunnel);
         CollectionPane.GridPane.AddHandler(PointerPressedEvent, OnCollectionPointerPressed, RoutingStrategies.Tunnel);
-        CollectionPane.ExtListPane.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
-        CollectionPane.ExtGridPane.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
+        ScryfallPane.ListPane.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
+        ScryfallPane.GridPane.AddHandler(PointerPressedEvent, OnExternalPointerPressed, RoutingStrategies.Tunnel);
         DeckPane.AddHandler(PointerPressedEvent, OnDeckPointerPressed, RoutingStrategies.Tunnel);
         DeckPane.AddHandler(PointerMovedEvent, OnDeckPanePointerMoved, RoutingStrategies.Bubble);
 
-        // Track at root level so we keep events even when the pointer leaves the collection pane
+        // Track at root level so we keep events even when the pointer leaves the panes
         this.AddHandler(PointerMovedEvent, OnRootPointerMoved, RoutingStrategies.Tunnel);
         this.AddHandler(PointerReleasedEvent, OnRootPointerReleased, RoutingStrategies.Tunnel);
         this.AddHandler(PointerCaptureLostEvent, OnCaptureLost);

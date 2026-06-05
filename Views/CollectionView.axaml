@@ -252,7 +252,7 @@
     </Panel>
 
     <!-- External Scryfall results (cards not in collection) -->
-    <Grid Grid.Row="1" Grid.Column="0" RowDefinitions="Auto,*"
+    <Grid Grid.Row="1" Grid.Column="0" RowDefinitions="Auto,*,Auto"
           IsVisible="{Binding IsExternalSearch}" Margin="8,0,4,8">
 
       <!-- External results toolbar -->
@@ -420,6 +420,14 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </ScrollViewer>
+
+      <!-- Load More -->
+      <Button Grid.Row="2"
+              Content="Load More"
+              Command="{Binding LoadMoreExternalResultsCommand}"
+              IsVisible="{Binding HasMoreExternalResults}"
+              HorizontalAlignment="Stretch"
+              Margin="0,4,0,4" Padding="8,5" FontSize="12" />
 
     </Grid>
 

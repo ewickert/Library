@@ -232,6 +232,7 @@ public partial class DecksViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<DeckColorHistogramItemViewModel> _landColorHistogram = new();
     [ObservableProperty] private ObservableCollection<DeckColorHistogramItemViewModel> _cardColorHistogram = new();
     [ObservableProperty] private string _meanTurnsToFirstLandMissText = "-";
+    [ObservableProperty] private string _meanLandsInFirstHandText = "-";
     [ObservableProperty] private string _deckTotalPriceText = "$0.00";
 
     public bool HasActiveDeckColorFilter => !string.IsNullOrWhiteSpace(ActiveDeckColorFilter);
@@ -572,6 +573,7 @@ public partial class DecksViewModel : ObservableObject
             LandColorHistogram = new ObservableCollection<DeckColorHistogramItemViewModel>();
             CardColorHistogram = new ObservableCollection<DeckColorHistogramItemViewModel>();
             MeanTurnsToFirstLandMissText = "-";
+            MeanLandsInFirstHandText = "-";
             DeckTotalPriceText = "$0.00";
             return;
         }
@@ -644,6 +646,11 @@ public partial class DecksViewModel : ObservableObject
         MeanTurnsToFirstLandMissText = meanTurn.HasValue
             ? meanTurn.Value.ToString("0.0", CultureInfo.InvariantCulture) + " turns"
             : ">20 turns";
+
+        var meanLands = EstimateMeanLandsInFirstHand(landFlags, 2500);
+        MeanLandsInFirstHandText = meanLands.HasValue
+            ? meanLands.Value.ToString("0.00", CultureInfo.InvariantCulture)
+            : "-";
 
         DeckTotalPriceText = "$" + totalPrice.ToString("0.00", CultureInfo.InvariantCulture);
     }
@@ -771,6 +778,30 @@ public partial class DecksViewModel : ObservableObject
         }
 
         return turnTotal / simulations;
+    }
+
+    private static double? EstimateMeanLandsInFirstHand(List<bool> isLandDeck, int simulations)
+    {
+        if (isLandDeck.Count == 0)
+            return null;
+
+        var rng = new Random(1337 + isLandDeck.Count);
+        var landTotal = 0.0;
+        var handSize = Math.Min(7, isLandDeck.Count);
+
+        for (var sim = 0; sim < simulations; sim++)
+        {
+            var deck = isLandDeck.ToArray();
+            Shuffle(deck, rng);
+
+            var lands = 0;
+            for (var i = 0; i < handSize; i++)
+                if (deck[i]) lands++;
+
+            landTotal += lands;
+        }
+
+        return landTotal / simulations;
     }
 
     private static void Shuffle(bool[] array, Random rng)

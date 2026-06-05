@@ -674,6 +674,10 @@
                   <TextBlock Grid.Column="0" Text="Mean turn to first land miss" Opacity="0.75" />
                   <TextBlock Grid.Column="1" Text="{Binding MeanTurnsToFirstLandMissText}" FontWeight="SemiBold" />
                 </Grid>
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Grid.Column="0" Text="Avg lands in first hand" Opacity="0.75" />
+                  <TextBlock Grid.Column="1" Text="{Binding MeanLandsInFirstHandText}" FontWeight="SemiBold" />
+                </Grid>
               </StackPanel>
             </Border>
 

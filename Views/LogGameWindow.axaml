@@ -1,0 +1,98 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Library.ViewModels"
+        xmlns:models="using:Library.Models"
+        x:Class="Library.Views.LogGameWindow"
+        x:DataType="vm:GamesViewModel"
+        Title="{Binding LogGameTitle}"
+        Width="520" SizeToContent="Height" MaxHeight="720"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False">
+
+  <ScrollViewer Margin="16" VerticalScrollBarVisibility="Auto">
+    <StackPanel Spacing="12" Margin="0,0,0,4">
+
+      <!-- Player count -->
+      <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+        <TextBlock Grid.Column="0" Text="Number of players" FontSize="12" Opacity="0.75"
+                   VerticalAlignment="Center" />
+        <NumericUpDown Grid.Column="1" Value="{Binding PlayerCount}"
+                       Minimum="2" Maximum="6" Increment="1"
+                       FormatString="0" Width="80" Height="30" FontSize="13"
+                       HorizontalContentAlignment="Center" />
+      </Grid>
+
+      <!-- Player rows -->
+      <Border Background="{DynamicResource ThemeSurfaceVariantBrush}" CornerRadius="6" Padding="8">
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="*,42,*,54" ColumnSpacing="4">
+            <TextBlock Grid.Column="0" Text="Name"  FontSize="10" Opacity="0.6" />
+            <TextBlock Grid.Column="1" Text="Me"    FontSize="10" Opacity="0.6" HorizontalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="Deck"  FontSize="10" Opacity="0.6" />
+            <TextBlock Grid.Column="3" Text="#"     FontSize="10" Opacity="0.6" HorizontalAlignment="Center" />
+          </Grid>
+          <ItemsControl ItemsSource="{Binding FormPlayers}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:LogGamePlayerViewModel">
+                <StackPanel Spacing="4" Margin="0,0,0,6">
+                  <Grid ColumnDefinitions="*,42,*,54" ColumnSpacing="4">
+                    <TextBox Grid.Column="0" Text="{Binding PlayerName}" FontSize="12"
+                             Watermark="Player name" Height="30" Padding="6,4" />
+                    <CheckBox Grid.Column="1" IsChecked="{Binding IsMe}"
+                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <ComboBox Grid.Column="2" Height="30" FontSize="11"
+                              SelectedItem="{Binding LinkedDeck}"
+                              ItemsSource="{Binding $parent[Window].((vm:GamesViewModel)DataContext).AvailableDecks}"
+                              PlaceholderText="Link deck…">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="models:Deck">
+                          <TextBlock Text="{Binding Name}" FontSize="11" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <ComboBox Grid.Column="3" Height="30" FontSize="12"
+                              SelectedItem="{Binding FinishPosition}"
+                              ItemsSource="{Binding $parent[Window].((vm:GamesViewModel)DataContext).AllPositions}"
+                              HorizontalContentAlignment="Center" />
+                  </Grid>
+                  <TextBox Text="{Binding DeckName}"
+                           Watermark="Deck name (optional)"
+                           FontSize="11" Height="26" Padding="6,3"
+                           IsVisible="{Binding !HasLinkedDeck}" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Turn ended -->
+      <Grid ColumnDefinitions="*,100" ColumnSpacing="8">
+        <TextBlock Grid.Column="0" Text="Turn game ended (0 = unknown)" FontSize="12"
+                   Opacity="0.75" VerticalAlignment="Center" />
+        <NumericUpDown Grid.Column="1" Value="{Binding TurnEnded}"
+                       Minimum="0" Maximum="200" Increment="1"
+                       FormatString="0" Height="30" FontSize="12" />
+      </Grid>
+
+      <!-- Notes -->
+      <TextBox Text="{Binding Notes}" Watermark="Notes (optional)"
+               FontSize="12" Height="60" AcceptsReturn="True" TextWrapping="Wrap" />
+
+      <!-- Error -->
+      <Border Background="#442200" BorderBrush="#AA6633" BorderThickness="1"
+              CornerRadius="4" Padding="8,5"
+              IsVisible="{Binding HasLogGameError}">
+        <TextBlock Text="{Binding LogGameError}" FontSize="11"
+                   Foreground="#FFCC88" TextWrapping="Wrap" />
+      </Border>
+
+      <!-- Save / Cancel -->
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Button Content="{Binding SaveButtonText}" Command="{Binding SaveGameCommand}" Classes="accent" />
+        <Button Content="Cancel" Command="{Binding CancelLogGameCommand}" />
+      </StackPanel>
+
+    </StackPanel>
+  </ScrollViewer>
+</Window>

@@ -14,6 +14,9 @@ public class Game
 
     public string PlayedAtLocal => PlayedAt.ToLocalTime().ToString("MMM d, yyyy");
     public string WinnerName => Players.FirstOrDefault(p => p.FinishPosition == 1)?.PlayerName ?? "?";
+    public string? WinnerCommanderScryfallId => Players.FirstOrDefault(p => p.FinishPosition == 1)?.CommanderScryfallId;
+    public List<GamePlayer> PlayersWithCommanders => Players.Where(p => p.HasCommanderArt).ToList();
+    public bool HasCommanderArts => Players.Any(p => p.HasCommanderArt);
     public string PlayerSummary => string.Join(", ", Players.Select(p =>
         p.IsMe ? $"Me ({p.DeckDisplayName})" : p.PlayerName));
 }
@@ -30,8 +33,10 @@ public class GamePlayer
     public int? DeckVersionNumber { get; set; }
     public int FinishPosition { get; set; } = 1;
     public Deck? Deck { get; set; }
+    public string? CommanderScryfallId { get; set; }
 
     public bool IsWinner => FinishPosition == 1;
+    public bool HasCommanderArt => !string.IsNullOrEmpty(CommanderScryfallId);
     public string DeckDisplayName
     {
         get

@@ -1211,6 +1211,52 @@ public class DatabaseService
         return games;
     }
 
+    public void UpdateGame(Game game)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "UPDATE Games SET PlayedAt=$playedAt, TurnEnded=$turnEnded, Notes=$notes WHERE Id=$id";
+            cmd.Parameters.AddWithValue("$playedAt", game.PlayedAt.ToString("o"));
+            cmd.Parameters.AddWithValue("$turnEnded", (object?)game.TurnEnded ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$notes", (object?)game.Notes ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$id", game.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.Transaction = tx;
+            cmd.CommandText = "DELETE FROM GamePlayers WHERE GameId=$id";
+            cmd.Parameters.AddWithValue("$id", game.Id);
+            cmd.ExecuteNonQuery();
+        }
+
+        foreach (var p in game.Players)
+        {
+            using var cmd = conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO GamePlayers (GameId, PlayerName, IsMe, DeckId, DeckName, DeckVersionId, FinishPosition)
+                VALUES ($gameId, $name, $isMe, $deckId, $deckName, $versionId, $pos)
+                """;
+            cmd.Parameters.AddWithValue("$gameId", game.Id);
+            cmd.Parameters.AddWithValue("$name", p.PlayerName);
+            cmd.Parameters.AddWithValue("$isMe", p.IsMe ? 1 : 0);
+            cmd.Parameters.AddWithValue("$deckId", (object?)p.DeckId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$deckName", (object?)p.DeckName ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$versionId", (object?)p.DeckVersionId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$pos", p.FinishPosition);
+            cmd.ExecuteNonQuery();
+        }
+
+        tx.Commit();
+    }
+
     public void DeleteGame(int id)
     {
         using var conn = CreateConnection();
@@ -1267,7 +1313,11 @@ public class DatabaseService
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT gp.*, d.Name AS LinkedDeckName, dv.VersionNumber AS DeckVersionNumber
+            SELECT gp.*, d.Name AS LinkedDeckName, dv.VersionNumber AS DeckVersionNumber,
+                   (SELECT c.ScryfallId FROM DeckCards dc
+                    JOIN Cards c ON c.Id = dc.CardId
+                    WHERE dc.DeckId = gp.DeckId AND dc.IsCommander = 1
+                    LIMIT 1) AS CommanderScryfallId
             FROM GamePlayers gp
             LEFT JOIN Decks d ON d.Id = gp.DeckId
             LEFT JOIN DeckVersions dv ON dv.Id = gp.DeckVersionId
@@ -1289,6 +1339,8 @@ public class DatabaseService
             var versionId = r.IsDBNull(versionIdOrd) ? (int?)null : r.GetInt32(versionIdOrd);
             var versionNumOrd = r.GetOrdinal("DeckVersionNumber");
             var versionNum = r.IsDBNull(versionNumOrd) ? (int?)null : r.GetInt32(versionNumOrd);
+            var cmdScryfallOrd = r.GetOrdinal("CommanderScryfallId");
+            var cmdScryfallId = r.IsDBNull(cmdScryfallOrd) ? null : r.GetString(cmdScryfallOrd);
 
             players.Add(new GamePlayer
             {
@@ -1301,6 +1353,7 @@ public class DatabaseService
                 DeckVersionId = versionId,
                 DeckVersionNumber = versionNum,
                 FinishPosition = r.GetInt32(r.GetOrdinal("FinishPosition")),
+                CommanderScryfallId = cmdScryfallId,
                 Deck = deckId.HasValue && linkedName != null ? new Models.Deck { Id = deckId.Value, Name = linkedName } : null
             });
         }

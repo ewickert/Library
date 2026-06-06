@@ -7,56 +7,76 @@
              x:Class="Library.Views.CollectionView"
              x:DataType="vm:CollectionViewModel">
 
+  <UserControl.Styles>
+    <Style Selector="Button.toolbarActive">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+  </UserControl.Styles>
+
   <Grid x:Name="RootGrid" RowDefinitions="Auto,*,Auto">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*" MinWidth="320" />
       <ColumnDefinition Width="0.34*" MinWidth="220" MaxWidth="360" />
     </Grid.ColumnDefinitions>
 
-    <!-- Toolbar -->
-    <Border Grid.Row="0" Grid.Column="0" Margin="8,8,8,4">
-      <WrapPanel Orientation="Horizontal" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+    <!-- Toolbar + status strip -->
+    <StackPanel Grid.Row="0" Grid.Column="0" Margin="8,8,8,4">
+
+      <!-- Main toolbar -->
+      <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+
+        <!-- Search -->
         <TextBox Text="{Binding SearchText}" Watermark="Search cards…" Width="200" />
         <Button Content="?" ToolTip.Tip="Search syntax help" Click="OnSearchHelpClick"
-                Padding="6,2" FontWeight="Bold" />
+                Padding="6,4" FontWeight="Bold" />
+
+        <!-- Set filter -->
         <ComboBox ItemsSource="{Binding AvailableSets}" SelectedItem="{Binding SelectedSetFilter}"
-                  Width="180" MaxDropDownHeight="300">
+                  Width="160" MaxDropDownHeight="300">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:SetItem">
               <TextBlock Text="{Binding Display}" />
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>
-        <Button Content="+ Add Card" Click="OnAddCardClick" />
-        <Button Padding="8,4"
-                Command="{Binding ToggleBrowsePaneCommand}"
-                ToolTip.Tip="Browse Scryfall and MTGJSON decks">
-          <Panel>
-            <TextBlock Text="⊡ Browse" IsVisible="{Binding !IsBrowsePaneOpen}" FontSize="13" />
-            <TextBlock Text="✕ Browse" IsVisible="{Binding IsBrowsePaneOpen}" FontSize="13" />
-          </Panel>
+
+        <!-- Add card -->
+        <Button Content="+ Add" Click="OnAddCardClick" ToolTip.Tip="Add a card to the collection"
+                Padding="8,4" />
+
+        <!-- ─── divider ─── -->
+        <Rectangle Width="1" Height="18" Margin="4,0" VerticalAlignment="Center"
+                   Fill="{DynamicResource SystemControlForegroundBaseLowBrush}" Opacity="0.35" />
+
+        <!-- View mode toggle -->
+        <Button Command="{Binding ToggleViewCommand}" Padding="7,4"
+                ToolTip.Tip="Toggle list / grid view">
+          <StackPanel Orientation="Horizontal" Spacing="3">
+            <TextBlock Text="☰" IsVisible="{Binding !IsGridView}" FontSize="12" />
+            <TextBlock Text="⊞" IsVisible="{Binding IsGridView}" FontSize="12" />
+          </StackPanel>
         </Button>
-        <TextBlock Text="{Binding BackfillStatus}" VerticalAlignment="Center"
-                   FontSize="12" Opacity="0.7"
+
+        <!-- Browse pane toggle -->
+        <Button Command="{Binding ToggleBrowsePaneCommand}" Padding="7,4"
+                ToolTip.Tip="Browse Scryfall / MTGJSON decks"
+                Classes.toolbarActive="{Binding IsBrowsePaneOpen}">
+          <TextBlock Text="⊡" FontSize="12" />
+        </Button>
+
+
+      </StackPanel>
+
+      <!-- Status strip — only visible when backfill or price refresh is running -->
+      <StackPanel Orientation="Horizontal" Spacing="16" Margin="2,3,0,0">
+        <TextBlock Text="{Binding BackfillStatus}" FontSize="11" Opacity="0.65"
                    IsVisible="{Binding BackfillStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        <Button Command="{Binding RefreshPricesCommand}" Padding="8,4"
-                ToolTip.Tip="Fetch current market prices from Scryfall. Sets baseline on first run, then updates current price for comparison.">
-          <StackPanel Orientation="Horizontal" Spacing="4">
-            <TextBlock IsVisible="{Binding !IsRefreshingPrices}" Text="$ Prices" />
-            <TextBlock IsVisible="{Binding IsRefreshingPrices}" Text="■ Stop" />
-          </StackPanel>
-        </Button>
-        <TextBlock Text="{Binding PriceRefreshStatus}" VerticalAlignment="Center"
-                   FontSize="12" Opacity="0.7"
+        <TextBlock Text="{Binding PriceRefreshStatus}" FontSize="11" Opacity="0.65"
                    IsVisible="{Binding PriceRefreshStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        <Button Command="{Binding ToggleViewCommand}" Padding="8,4">
-          <StackPanel Orientation="Horizontal" Spacing="4">
-            <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="13" />
-            <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="13" />
-          </StackPanel>
-        </Button>
-      </WrapPanel>
-    </Border>
+      </StackPanel>
+
+    </StackPanel>
 
     <!-- List / Grid area -->
     <Panel x:Name="CollectionPanel" Grid.Row="1" Grid.Column="0"

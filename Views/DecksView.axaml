@@ -13,6 +13,12 @@
   </UserControl.Resources>
 
   <UserControl.Styles>
+    <!-- Active state for toolbar icon buttons -->
+    <Style Selector="Button.toolbarActive">
+      <Setter Property="Background" Value="{DynamicResource ThemeAccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+
     <!-- Color identity toggle buttons -->
     <Style Selector="ToggleButton.colorBtn">
       <Setter Property="Width" Value="28"/>
@@ -136,70 +142,101 @@
         </StackPanel>
       </Button>
 
-      <!-- Header -->
-      <ScrollViewer Grid.Row="1"
-                    HorizontalScrollBarVisibility="Auto"
-                    VerticalScrollBarVisibility="Disabled"
-                    Margin="0,0,0,4"
-                    IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <TextBlock Text="{Binding SelectedDeck.Name}" FontSize="15" FontWeight="Bold" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding SelectedDeck.Format}" Opacity="0.6" VerticalAlignment="Center" />
-          <!-- Card count badge -->
-          <Border CornerRadius="4" Padding="6,2" VerticalAlignment="Center"
-                  Background="{DynamicResource ThemeSurfaceVariantBrush}">
-            <TextBlock Text="{Binding DeckCountText}" FontSize="12" FontWeight="SemiBold"
+      <!-- Header toolbar — compact icon bar -->
+      <Border Grid.Row="1" Margin="0,0,0,4"
+              IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <StackPanel Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
+
+          <!-- Deck name · format · count -->
+          <TextBlock Text="{Binding SelectedDeck.Name}" FontSize="15" FontWeight="Bold"
+                     VerticalAlignment="Center" MaxWidth="220" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding SelectedDeck.Format}" Opacity="0.55" FontSize="11"
+                     VerticalAlignment="Center" Margin="2,0,0,0" />
+          <Border CornerRadius="4" Padding="5,2" VerticalAlignment="Center"
+                  Background="{DynamicResource ThemeSurfaceVariantBrush}" Margin="2,0,0,0">
+            <TextBlock Text="{Binding DeckCountText}" FontSize="11" FontWeight="SemiBold"
                        Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
           </Border>
-          <Button Command="{Binding ToggleViewCommand}" Padding="6,3">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <TextBlock Text="⊞ Grid" IsVisible="{Binding !IsGridView}" FontSize="12" />
-              <TextBlock Text="☰ List" IsVisible="{Binding IsGridView}" FontSize="12" />
+
+          <!-- ─── divider ─── -->
+          <Rectangle Width="1" Height="18" Margin="6,0" VerticalAlignment="Center"
+                     Fill="{DynamicResource SystemControlForegroundBaseLowBrush}" Opacity="0.35" />
+
+          <!-- View mode group (list/grid + sorted) -->
+          <Border CornerRadius="6" Background="{DynamicResource ThemeSurfaceVariantBrush}" Padding="1">
+            <StackPanel Orientation="Horizontal" Spacing="0">
+              <Button Command="{Binding ToggleViewCommand}" Padding="7,4"
+                      ToolTip.Tip="Toggle list / grid view">
+                <StackPanel Orientation="Horizontal" Spacing="3">
+                  <TextBlock Text="☰" IsVisible="{Binding !IsGridView}" FontSize="12" />
+                  <TextBlock Text="⊞" IsVisible="{Binding IsGridView}" FontSize="12" />
+                </StackPanel>
+              </Button>
+              <Button Command="{Binding ToggleSortedViewCommand}" Padding="7,4"
+                      ToolTip.Tip="Sorted category view"
+                      Classes.toolbarActive="{Binding IsSortedView}">
+                <TextBlock Text="⊡" FontSize="12" />
+              </Button>
             </StackPanel>
+          </Border>
+
+          <!-- ─── divider ─── -->
+          <Rectangle Width="1" Height="18" Margin="6,0" VerticalAlignment="Center"
+                     Fill="{DynamicResource SystemControlForegroundBaseLowBrush}" Opacity="0.35" />
+
+          <!-- Panel toggles -->
+          <Button Command="{Binding ToggleCollectionPaneCommand}" Padding="7,4"
+                  ToolTip.Tip="Collection pane"
+                  Classes.toolbarActive="{Binding IsCollectionPaneOpen}">
+            <TextBlock Text="📚" FontSize="13" />
           </Button>
-          <Button Command="{Binding ToggleSortedViewCommand}" Padding="6,3"
-                  ToolTip.Tip="Toggle sorted category view">
-            <StackPanel Orientation="Horizontal" Spacing="4">
-              <TextBlock Text="⊡ Sorted" IsVisible="{Binding !IsSortedView}" FontSize="12" />
-              <TextBlock Text="⊞ Sorted" IsVisible="{Binding IsSortedView}" FontSize="12" />
-            </StackPanel>
+          <Button Command="{Binding ToggleScryfallPaneCommand}" Padding="7,4"
+                  ToolTip.Tip="Scryfall search"
+                  Classes.toolbarActive="{Binding IsScryfallPaneOpen}">
+            <TextBlock Text="🔍" FontSize="13" />
           </Button>
-          <Button Command="{Binding ToggleCollectionPaneCommand}" Padding="6,3"
-                  ToolTip.Tip="Toggle collection pane">
-            <TextBlock Text="📚 Collection" FontSize="12" />
-          </Button>
-          <Button Command="{Binding ToggleScryfallPaneCommand}" Padding="6,3"
-                  ToolTip.Tip="Toggle Scryfall search pane">
-            <TextBlock Text="🔍 Scryfall" FontSize="12" />
-          </Button>
-            <Button Command="{Binding ToggleStatsPaneCommand}" Padding="6,3"
-              ToolTip.Tip="Toggle deck stats pane"
-              IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}">
-              <TextBlock Text="📈 Stats" FontSize="12" />
-            </Button>
-          <Button Command="{Binding ShareDeckCommand}" Padding="6,3"
+          <Button Command="{Binding ToggleStatsPaneCommand}" Padding="7,4"
+                  ToolTip.Tip="Deck stats"
                   IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}"
-                  ToolTip.Tip="Share deck via the OS share menu">
-            <TextBlock Text="⇧ Share" FontSize="12" />
+                  Classes.toolbarActive="{Binding IsStatsPaneOpen}">
+            <TextBlock Text="📈" FontSize="13" />
           </Button>
-          <Button Command="{Binding ExportDeckCommand}" Padding="6,3"
+          <Button Command="{Binding ToggleHistoryPaneCommand}" Padding="7,4"
+                  ToolTip.Tip="Version history"
                   IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}"
-                  ToolTip.Tip="Save deck to a text file">
-            <TextBlock Text="↑ Export" FontSize="12" />
+                  Classes.toolbarActive="{Binding IsHistoryPaneOpen}">
+            <TextBlock Text="🕓" FontSize="13" />
           </Button>
-          <Button Command="{Binding ImportDeckCommand}" Padding="6,3"
-                  ToolTip.Tip="Import a deck from a text file">
-            <TextBlock Text="↓ Import" FontSize="12" />
-          </Button>
-          <Button Command="{Binding ToggleHistoryPaneCommand}" Padding="6,3"
-                  IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}"
-                  ToolTip.Tip="Toggle version history pane">
-            <TextBlock Text="🕓 History" FontSize="12" />
-          </Button>
-          <Button Content="Delete Deck" Command="{Binding DeleteDeckCommand}"
-                  Background="#CC3300" Foreground="White" />
+
+          <!-- ─── divider ─── -->
+          <Rectangle Width="1" Height="18" Margin="6,0" VerticalAlignment="Center"
+                     Fill="{DynamicResource SystemControlForegroundBaseLowBrush}" Opacity="0.35" />
+
+          <!-- Deck actions menu -->
+          <DropDownButton Padding="10,4" ToolTip.Tip="Deck actions">
+            <DropDownButton.Content>
+              <TextBlock Text="⋯" FontSize="15" />
+            </DropDownButton.Content>
+            <DropDownButton.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="⇧  Share"
+                          Command="{Binding ShareDeckCommand}"
+                          IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <MenuItem Header="↑  Export to file"
+                          Command="{Binding ExportDeckCommand}"
+                          IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <MenuItem Header="↓  Import from file"
+                          Command="{Binding ImportDeckCommand}" />
+                <Separator />
+                <MenuItem Header="🗑  Delete Deck"
+                          Command="{Binding DeleteDeckCommand}"
+                          IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </MenuFlyout>
+            </DropDownButton.Flyout>
+          </DropDownButton>
+
         </StackPanel>
-      </ScrollViewer>
+      </Border>
 
       <!-- Duplicate / over-limit warning banner -->
       <Border Grid.Row="2"

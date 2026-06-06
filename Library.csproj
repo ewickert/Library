@@ -59,4 +59,9 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <AndroidResource Include="Platforms/Android/Resources/**" Link="Resources/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
+
+  <!-- Copy Info.plist to output dir so NSBundle.mainBundle finds it in dev/debug runs -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Content Include="Platforms/MacOS/Info.plist" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

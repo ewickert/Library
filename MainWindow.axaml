@@ -19,6 +19,8 @@
                             Command="{Binding ImportCsvCommand}"
                             Gesture="Cmd+O" />
             <NativeMenuItemSeparator />
+            <NativeMenuItem Header="Refresh Prices"
+                            Command="{Binding RefreshPricesCommand}" />
             <NativeMenuItem Header="Fill Missing Metadata"
                             Command="{Binding BackfillMetadataCommand}" />
             <NativeMenuItemSeparator />
@@ -45,14 +47,17 @@
                   Command="{Binding ImportCsvCommand}"
                   InputGesture="Ctrl+O" />
         <Separator />
+        <MenuItem Header="Refresh Prices"
+                  Command="{Binding RefreshPricesCommand}" />
         <MenuItem Header="Fill Missing Metadata"
                   Command="{Binding BackfillMetadataCommand}" />
+        <Separator />
+        <MenuItem Header="_Settings" Click="OnSettingsMenuClick" />
         <Separator />
         <MenuItem Header="E_xit"
                   Command="{Binding QuitCommand}"
                   InputGesture="Alt+F4" />
       </MenuItem>
-      <MenuItem Header="_Settings" Click="OnSettingsMenuClick" />
     </Menu>
 
     <views:MainView />

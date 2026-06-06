@@ -150,6 +150,9 @@ public partial class MainWindowViewModel : ObservableObject
     /// <summary>Passthrough to CollectionViewModel so the menu can bind to it directly.</summary>
     public ICommand BackfillMetadataCommand => Collection.BackfillMetadataCommand;
 
+    /// <summary>Passthrough to CollectionViewModel so the menu can bind to it directly.</summary>
+    public ICommand RefreshPricesCommand => Collection.RefreshPricesCommand;
+
     [RelayCommand]
     private void Quit()
     {

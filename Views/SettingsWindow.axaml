@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Library.ViewModels"
+        x:Class="Library.Views.SettingsWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="Settings"
+        Width="340"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ThemeBackgroundBrush}">
+
+  <StackPanel Spacing="18" Margin="20,20,20,24">
+
+    <!-- Appearance -->
+    <TextBlock Text="Appearance"
+               FontWeight="SemiBold" FontSize="14"
+               Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
+
+    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto">
+      <TextBlock Grid.Column="0" Text="Theme"
+                 FontSize="13"
+                 Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+                 VerticalAlignment="Center" />
+      <ComboBox Grid.Column="1"
+                ItemsSource="{Binding AvailableThemes}"
+                SelectedItem="{Binding CurrentTheme}"
+                Width="160" Height="32" FontSize="13"
+                VerticalContentAlignment="Center" />
+    </Grid>
+
+    <Border Background="#2A3E6A"
+            BorderBrush="#5F9CFF" BorderThickness="1"
+            CornerRadius="6" Padding="10,6"
+            IsVisible="{Binding ShowIosThemeRecommendation}">
+      <TextBlock Text="{Binding IosThemeRecommendationText}"
+                 FontSize="12" FontWeight="SemiBold"
+                 Foreground="#DCEBFF" />
+    </Border>
+
+    <Border Height="1" Background="{DynamicResource ThemeBorderBrush}" Margin="-20,0" />
+
+    <!-- Default Views -->
+    <TextBlock Text="Default Views"
+               FontWeight="SemiBold" FontSize="14"
+               Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
+
+    <TextBlock Text="Starting view mode for each section."
+               FontSize="12" Opacity="0.6" TextWrapping="Wrap"
+               Foreground="{DynamicResource ThemeTextSecondaryBrush}" />
+
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Grid.Column="0" Text="Decks"
+                 FontSize="13"
+                 Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+                 VerticalAlignment="Center" />
+      <ComboBox Grid.Column="1"
+                SelectedIndex="{Binding Decks.DeckViewModeIndex}"
+                Width="120" Height="32" FontSize="13"
+                VerticalContentAlignment="Center">
+        <ComboBoxItem Content="List" />
+        <ComboBoxItem Content="Grid" />
+        <ComboBoxItem Content="Sorted" />
+      </ComboBox>
+    </Grid>
+
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Grid.Column="0" Text="Collection"
+                 FontSize="13"
+                 Foreground="{DynamicResource ThemeTextSecondaryBrush}"
+                 VerticalAlignment="Center" />
+      <ComboBox Grid.Column="1"
+                SelectedIndex="{Binding Collection.CollectionViewModeIndex}"
+                Width="120" Height="32" FontSize="13"
+                VerticalContentAlignment="Center">
+        <ComboBoxItem Content="List" />
+        <ComboBoxItem Content="Grid" />
+      </ComboBox>
+    </Grid>
+
+    <Border Height="1" Background="{DynamicResource ThemeBorderBrush}" Margin="-20,0" />
+
+    <Button Content="Done"
+            HorizontalAlignment="Right"
+            Padding="24,8" FontSize="13"
+            Click="OnDoneClick" />
+
+  </StackPanel>
+
+</Window>

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -42,7 +43,21 @@ public partial class App : Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow();
+            var mainWindow = new MainWindow();
+            desktop.MainWindow = mainWindow;
+
+            // macOS: add Preferences… to the application menu (appears in the app-name menu,
+            // the conventional location on macOS). NativeMenu.SetMenu on the Application merges
+            // items into that first menu automatically.
+            var prefsItem = new NativeMenuItem("Preferences…")
+            {
+                Gesture = new KeyGesture(Key.OemComma, KeyModifiers.Meta)
+            };
+            prefsItem.Click += (_, _) => mainWindow.ShowSettings();
+
+            var appMenu = new NativeMenu();
+            appMenu.Add(prefsItem);
+            NativeMenu.SetMenu(this, appMenu);
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime singleView)
         {

@@ -33,8 +33,12 @@ public partial class MainWindowViewModel : ObservableObject
 
     public bool HasImportStatus => !string.IsNullOrWhiteSpace(ImportStatus);
 
-    partial void OnImportStatusChanged(string value) =>
+    partial void OnImportStatusChanged(string value)
+    {
         OnPropertyChanged(nameof(HasImportStatus));
+        OnPropertyChanged(nameof(AppStatusText));
+        OnPropertyChanged(nameof(HasAppStatus));
+    }
 
     // ── Theme selection ────────────────────────────────────────────
     public string[] AvailableThemes => ThemeService.GetAvailableThemes();
@@ -46,6 +50,51 @@ public partial class MainWindowViewModel : ObservableObject
 
     partial void OnCurrentThemeChanged(string value) =>
         ThemeService.Instance.Apply(value);
+
+    // ── Aggregate app status ───────────────────────────────────────
+    public bool IsAppBusy =>
+        Collection.IsRefreshingPrices ||
+        Collection.IsLoadingImage ||
+        Collection.IsLoadingAlternates ||
+        Collection.IsBackfilling ||
+        Collection.BrowsePane.IsSearching;
+
+    public string AppStatusText =>
+        !string.IsNullOrEmpty(Collection.PriceRefreshStatus) ? Collection.PriceRefreshStatus :
+        !string.IsNullOrEmpty(Collection.BackfillStatus)     ? Collection.BackfillStatus :
+        !string.IsNullOrEmpty(ImportStatus)                  ? ImportStatus :
+        Collection.IsRefreshingPrices                        ? "Refreshing prices…" :
+        Collection.IsLoadingImage                            ? "Loading image…" :
+        Collection.IsLoadingAlternates                       ? "Loading printings…" :
+        Collection.BrowsePane.IsSearching                    ? "Searching…" :
+        string.Empty;
+
+    public bool HasAppStatus => !string.IsNullOrEmpty(AppStatusText);
+
+    private void OnChildPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CollectionViewModel.IsRefreshingPrices)
+                           or nameof(CollectionViewModel.PriceRefreshStatus)
+                           or nameof(CollectionViewModel.IsLoadingImage)
+                           or nameof(CollectionViewModel.IsLoadingAlternates)
+                           or nameof(CollectionViewModel.IsBackfilling)
+                           or nameof(CollectionViewModel.BackfillStatus))
+        {
+            OnPropertyChanged(nameof(IsAppBusy));
+            OnPropertyChanged(nameof(AppStatusText));
+            OnPropertyChanged(nameof(HasAppStatus));
+        }
+    }
+
+    private void OnBrowsePanePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(BrowsePaneViewModel.IsSearching))
+        {
+            OnPropertyChanged(nameof(IsAppBusy));
+            OnPropertyChanged(nameof(AppStatusText));
+            OnPropertyChanged(nameof(HasAppStatus));
+        }
+    }
 
     public MainWindowViewModel(DatabaseService db, ScryfallService scryfall, MtgJsonService mtgJson)
     {
@@ -61,6 +110,9 @@ public partial class MainWindowViewModel : ObservableObject
             await Decks.ImportMtgJsonDeckAsync(deck);
             SelectedTabIndex = 1;
         };
+
+        Collection.PropertyChanged += OnChildPropertyChanged;
+        Collection.BrowsePane.PropertyChanged += OnBrowsePanePropertyChanged;
     }
 
     // Tab index 3 = Shopping, 4 = Games — reload whenever the user navigates to them

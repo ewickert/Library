@@ -52,6 +52,7 @@
                   Command="{Binding QuitCommand}"
                   InputGesture="Alt+F4" />
       </MenuItem>
+      <MenuItem Header="_Settings" Click="OnSettingsMenuClick" />
     </Menu>
 
     <views:MainView />

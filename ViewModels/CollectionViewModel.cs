@@ -213,14 +213,14 @@ public partial class CollectionViewModel : ObservableObject
         if (IsBackfilling) { _backfillCts?.Cancel(); return; }
 
         var cards = _db.GetCardsNeedingMetadata();
-        if (cards.Count == 0) { BackfillStatus = "All cards up to date."; return; }
+        if (cards.Count == 0) { BackfillStatus = "All card data is up to date."; return; }
 
         _backfillCts = new CancellationTokenSource();
         IsBackfilling = true;
-        BackfillStatus = $"0 / {cards.Count}";
+        BackfillStatus = $"Fetching card data: 0 of {cards.Count}";
 
         var progress = new Progress<(int done, int total)>(p =>
-            BackfillStatus = $"{p.done} / {p.total}");
+            BackfillStatus = $"Fetching card data: {p.done} of {p.total}");
 
         await _scryfall.BackfillCardMetadataAsync(
             cards,
@@ -230,8 +230,8 @@ public partial class CollectionViewModel : ObservableObject
 
         IsBackfilling = false;
         BackfillStatus = _backfillCts.IsCancellationRequested
-            ? "Stopped."
-            : "Done.";
+            ? "Card data fetch stopped."
+            : "Card data up to date.";
 
         RefreshAvailableSets();
         LoadCards();
@@ -250,16 +250,16 @@ public partial class CollectionViewModel : ObservableObject
             // All have baselines — do a full current-price refresh instead
             cards = _db.GetCardsForPriceRefresh();
         }
-        if (cards.Count == 0) { PriceRefreshStatus = "No cards to update."; return; }
+        if (cards.Count == 0) { PriceRefreshStatus = "All prices are current."; return; }
 
         bool settingBaseline = _db.GetCardsNeedingBaselinePrice().Count > 0;
 
         _priceCts = new CancellationTokenSource();
         IsRefreshingPrices = true;
-        PriceRefreshStatus = $"0 / {cards.Count}";
+        PriceRefreshStatus = $"Fetching prices: 0 of {cards.Count}";
 
         var progress = new Progress<(int done, int total)>(p =>
-            PriceRefreshStatus = $"{p.done} / {p.total}");
+            PriceRefreshStatus = $"Fetching prices: {p.done} of {p.total}");
 
         await _scryfall.BackfillCardPricesAsync(
             cards,
@@ -272,7 +272,7 @@ public partial class CollectionViewModel : ObservableObject
             _priceCts.Token);
 
         IsRefreshingPrices = false;
-        PriceRefreshStatus = _priceCts.IsCancellationRequested ? "Stopped." : "Done.";
+        PriceRefreshStatus = _priceCts.IsCancellationRequested ? "Price fetch stopped." : "Prices up to date.";
 
         LoadCards();
     }

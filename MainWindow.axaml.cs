@@ -110,6 +110,15 @@ public partial class MainWindow : Window
         };
     }
 
+    public void ShowSettings()
+    {
+        var win = new SettingsWindow { DataContext = DataContext };
+        win.ShowDialog(this);
+    }
+
+    private void OnSettingsMenuClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) =>
+        ShowSettings();
+
     private async Task ShowMessageAsync(string title, string message)
     {
         var dialog = new Window

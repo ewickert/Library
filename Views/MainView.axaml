@@ -48,109 +48,29 @@
             <Button Content="Commander Mode"
                     Command="{Binding EnterCommanderModeCommand}"
                     Padding="10,4" Height="28" />
+
           </StackPanel>
         </DockPanel>
       </Border>
 
-      <!-- Status bar -->
+      <!-- Status bar — shows live fetch / import activity -->
       <Border x:Name="StatusBar"
               DockPanel.Dock="Bottom"
               Background="{DynamicResource ThemeSurfaceHighBrush}"
               BorderBrush="{DynamicResource ThemeBorderBrush}"
               BorderThickness="0,1,0,0"
-              Height="28">
-        <Grid ColumnDefinitions="*,Auto" Margin="10,0">
-          <TextBlock Grid.Column="0"
-                     Text="{Binding ImportStatus}"
-                     IsVisible="{Binding HasImportStatus}"
+              Height="28"
+              IsVisible="{Binding HasAppStatus}">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="10,0" VerticalAlignment="Center">
+          <ProgressBar IsIndeterminate="True"
+                       IsVisible="{Binding IsAppBusy}"
+                       Width="60" Height="6"
+                       VerticalAlignment="Center" />
+          <TextBlock Text="{Binding AppStatusText}"
                      FontSize="11" Opacity="0.65"
                      Foreground="{DynamicResource ThemeTextSecondaryBrush}"
                      VerticalAlignment="Center" />
-          <Button Grid.Column="1"
-                  Height="22" Width="28"
-                  FontSize="13"
-                  Padding="0"
-                  HorizontalContentAlignment="Center"
-                  VerticalAlignment="Center"
-                  ToolTip.Tip="Settings">
-            <Button.Content>⚙</Button.Content>
-            <Button.Flyout>
-              <Flyout Placement="TopEdgeAlignedRight">
-                <StackPanel Width="280" Spacing="14" Margin="14,12,14,14">
-
-                  <!-- Appearance -->
-                  <TextBlock Text="Appearance"
-                             FontWeight="SemiBold" FontSize="13"
-                             Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
-
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Theme"
-                               FontSize="12"
-                               Foreground="{DynamicResource ThemeTextSecondaryBrush}"
-                               VerticalAlignment="Center" />
-                    <ComboBox Grid.Column="1"
-                              ItemsSource="{Binding AvailableThemes}"
-                              SelectedItem="{Binding CurrentTheme}"
-                              Width="150" Height="30" FontSize="12"
-                              VerticalContentAlignment="Center" />
-                  </Grid>
-
-                  <Border Background="#2A3E6A"
-                          BorderBrush="#5F9CFF" BorderThickness="1"
-                          CornerRadius="6" Padding="8,5"
-                          IsVisible="{Binding ShowIosThemeRecommendation}">
-                    <TextBlock Text="{Binding IosThemeRecommendationText}"
-                               FontSize="11" FontWeight="SemiBold"
-                               Foreground="#DCEBFF" />
-                  </Border>
-
-                  <Border Height="1"
-                          Background="{DynamicResource ThemeBorderBrush}"
-                          Margin="-14,0" />
-
-                  <!-- Default Views -->
-                  <TextBlock Text="Default Views"
-                             FontWeight="SemiBold" FontSize="13"
-                             Foreground="{DynamicResource ThemeTextPrimaryBrush}" />
-
-                  <TextBlock Text="These set the starting view mode for each section."
-                             FontSize="11" Opacity="0.6" TextWrapping="Wrap"
-                             Foreground="{DynamicResource ThemeTextSecondaryBrush}" />
-
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Decks"
-                               FontSize="12"
-                               Foreground="{DynamicResource ThemeTextSecondaryBrush}"
-                               VerticalAlignment="Center" />
-                    <ComboBox Grid.Column="1"
-                              SelectedIndex="{Binding Decks.DeckViewModeIndex}"
-                              Width="110" Height="30" FontSize="12"
-                              VerticalContentAlignment="Center">
-                      <ComboBoxItem Content="List" />
-                      <ComboBoxItem Content="Grid" />
-                      <ComboBoxItem Content="Sorted" />
-                    </ComboBox>
-                  </Grid>
-
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Collection"
-                               FontSize="12"
-                               Foreground="{DynamicResource ThemeTextSecondaryBrush}"
-                               VerticalAlignment="Center" />
-                    <ComboBox Grid.Column="1"
-                              SelectedIndex="{Binding Collection.CollectionViewModeIndex}"
-                              Width="110" Height="30" FontSize="12"
-                              VerticalContentAlignment="Center">
-                      <ComboBoxItem Content="List" />
-                      <ComboBoxItem Content="Grid" />
-                    </ComboBox>
-                  </Grid>
-
-                </StackPanel>
-              </Flyout>
-            </Button.Flyout>
-          </Button>
-        </Grid>
+        </StackPanel>
       </Border>
 
       <!-- Mobile header: title + hamburger — managed by code-behind -->
@@ -328,8 +248,8 @@
             </ComboBox>
           </Grid>
 
-          <TextBlock Text="{Binding ImportStatus}"
-                     IsVisible="{Binding HasImportStatus}"
+          <TextBlock Text="{Binding AppStatusText}"
+                     IsVisible="{Binding HasAppStatus}"
                      FontSize="13" Opacity="0.7"
                      Foreground="{DynamicResource ThemeTextSecondaryBrush}" />
 

@@ -74,6 +74,8 @@ public partial class CollectionViewModel : ObservableObject
             RequestCloneToDeckBuilder?.Invoke(deck) ?? Task.CompletedTask;
         BrowsePane.RequestClose = () => IsBrowsePaneOpen = false;
 
+        SetIconService.Instance.SetsUpdated += (_, _) => RefreshAvailableSets();
+
         RefreshAvailableSets();
         LoadCards();
         AutoBackfillPricesIfNeeded();
@@ -91,10 +93,18 @@ public partial class CollectionViewModel : ObservableObject
     public void RefreshAvailableSets()
     {
         var all = _db.GetAllCards();
+        var svc = SetIconService.Instance;
         var sets = all
             .GroupBy(c => c.SetCode)
             .OrderBy(g => g.Key)
-            .Select(g => new SetItem(g.Key, g.First().SetName))
+            .Select(g =>
+            {
+                var code = g.Key;
+                var name = g.First().SetName;
+                if (string.IsNullOrWhiteSpace(name))
+                    name = svc.TryGetName(code) ?? code;
+                return new SetItem(code, name);
+            })
             .ToList();
 
         var current = SelectedSetFilter;
@@ -376,8 +386,18 @@ public partial class CollectionViewModel : ObservableObject
 
 }
 
-public record SetItem(string Code, string Name)
+public class SetItem
 {
     public static readonly SetItem All = new("", "All Sets");
+
+    public string Code { get; }
+    public string Name { get; }
+
+    public SetItem(string code, string name)
+    {
+        Code = code;
+        Name = name;
+    }
+
     public string Display => string.IsNullOrEmpty(Code) ? "All Sets" : $"{Code} – {Name}";
 }

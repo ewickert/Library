@@ -36,7 +36,10 @@
                   Width="160" MaxDropDownHeight="300">
           <ComboBox.ItemTemplate>
             <DataTemplate x:DataType="vm:SetItem">
-              <TextBlock Text="{Binding Display}" />
+              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                <controls:SetIconControl SetCode="{Binding Code}" />
+                <TextBlock Text="{Binding Display}" VerticalAlignment="Center" />
+              </StackPanel>
             </DataTemplate>
           </ComboBox.ItemTemplate>
         </ComboBox>

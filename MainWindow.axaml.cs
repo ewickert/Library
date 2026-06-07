@@ -25,6 +25,7 @@ public partial class MainWindow : Window
         DataContext = vm;
         InitializeComponent();
         SymbolService.Instance.BeginLoad();
+        SetIconService.Instance.BeginLoad();
 
         // Register the global printing-picker delegate so ViewModels can show the dialog without
         // taking a dependency on Views.

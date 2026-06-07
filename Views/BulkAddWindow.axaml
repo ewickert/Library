@@ -1,0 +1,254 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Library.ViewModels"
+        xmlns:svc="using:Library.Services"
+        xmlns:controls="using:Library.Views.Controls"
+        x:Class="Library.Views.BulkAddWindow"
+        x:DataType="vm:BulkAddViewModel"
+        Title="{Binding Title}"
+        Width="860" Height="660" MinWidth="640" MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+  <Grid RowDefinitions="*,Auto" Margin="16">
+
+    <!-- Main content: left picker | splitter | right queue -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,5,*">
+
+      <!-- ── Left: search + printing picker + preview ─────────────────── -->
+      <DockPanel Grid.Column="0">
+
+        <!-- Search -->
+        <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,10">
+          <TextBlock Text="Search Scryfall" FontWeight="SemiBold" />
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+            <TextBox Grid.Column="0" Text="{Binding SearchQuery}" Watermark="Card name…">
+              <TextBox.KeyBindings>
+                <KeyBinding Gesture="Return" Command="{Binding SearchCommand}" />
+              </TextBox.KeyBindings>
+            </TextBox>
+            <Button Grid.Column="1" Content="Search" Command="{Binding SearchCommand}"
+                    IsEnabled="{Binding !IsSearching}" />
+          </Grid>
+          <ProgressBar IsVisible="{Binding IsSearching}" IsIndeterminate="True" Height="4" />
+
+          <ListBox ItemsSource="{Binding SearchResults}" MaxHeight="160"
+                   Background="{DynamicResource ThemeSurfaceBrush}"
+                   IsVisible="{Binding SearchResults.Count}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="svc:ScryfallCardData">
+                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Background="Transparent" Padding="6,3"
+                        Command="{Binding $parent[Window].((vm:BulkAddViewModel)DataContext).SelectSearchResultCommand}"
+                        CommandParameter="{Binding}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding SetCode}" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding CollectorNumber}" Opacity="0.5" FontSize="11" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </StackPanel>
+
+        <!-- Printing chips (below search, above preview) -->
+        <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,10"
+                    IsVisible="{Binding PrintingOptions.Count}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Printings" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <ProgressBar IsVisible="{Binding IsLoadingPrintings}" IsIndeterminate="True"
+                         Width="50" Height="5" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBox Text="{Binding PrintingFilter}" Watermark="Filter by set code or name…"
+                   IsVisible="{Binding PrintingOptions.Count}" />
+          <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                        MaxHeight="160">
+            <ItemsControl ItemsSource="{Binding FilteredPrintingOptions}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="svc:ScryfallCardData">
+                  <Button Margin="2" Padding="6,3"
+                          Command="{Binding $parent[Window].((vm:BulkAddViewModel)DataContext).SelectPrintingCommand}"
+                          CommandParameter="{Binding}">
+                    <StackPanel Spacing="1" Width="48">
+                      <controls:SetIconControl SetCode="{Binding SetCode}" Rarity="{Binding Rarity}"
+                                               Width="14" Height="14" HorizontalAlignment="Center" />
+                      <TextBlock Text="{Binding SetCode}" FontSize="9" FontWeight="SemiBold"
+                                 HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding CollectorNumber}" FontSize="8"
+                                 HorizontalAlignment="Center" Opacity="0.6" />
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <!-- Selected printing summary + add button -->
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"
+                IsVisible="{Binding SelectedPrinting, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <StackPanel Grid.Column="0" Spacing="2">
+              <TextBlock FontWeight="SemiBold" FontSize="13" Text="{Binding SelectedPrinting.Name}" />
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <controls:SetIconControl SetCode="{Binding SelectedPrinting.SetCode}"
+                                         Rarity="{Binding SelectedPrinting.Rarity}"
+                                         Width="14" Height="14" />
+                <TextBlock FontSize="11" Opacity="0.7">
+                  <Run Text="{Binding SelectedPrinting.SetCode}" />
+                  <Run Text=" #" />
+                  <Run Text="{Binding SelectedPrinting.CollectorNumber}" />
+                  <Run Text=" · " />
+                  <Run Text="{Binding SelectedPrinting.Rarity}" />
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+            <Button Grid.Column="1" Content="+ Add to list" Classes="accent"
+                    Command="{Binding AddToListCommand}"
+                    VerticalAlignment="Center" Padding="10,6" />
+          </Grid>
+        </StackPanel>
+
+        <!-- Preview image fills remaining space -->
+        <Border CornerRadius="6" ClipToBounds="True"
+                Background="{DynamicResource ThemeSurfaceVariantBrush}">
+          <Panel>
+            <TextBlock Text="Search for a card above" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Opacity="0.4" TextWrapping="Wrap" Margin="12"
+                       IsVisible="{Binding SelectedPrinting, Converter={x:Static ObjectConverters.IsNull}}" />
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoadingPreview}"
+                         VerticalAlignment="Bottom" Margin="8" />
+            <Image Source="{Binding PreviewImage}" Stretch="Uniform"
+                   IsVisible="{Binding PreviewImage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </Panel>
+        </Border>
+
+      </DockPanel>
+
+      <!-- Splitter -->
+      <GridSplitter Grid.Column="1" ResizeDirection="Columns"
+                    Background="Transparent" Cursor="SizeWestEast" />
+
+      <!-- ── Right: pending queue or duplicate resolution ──────────────── -->
+      <Grid Grid.Column="2" RowDefinitions="Auto,*">
+
+        <!-- Pending queue (visible when not resolving duplicates) -->
+        <DockPanel Grid.Row="0" Grid.RowSpan="2"
+                   IsVisible="{Binding !IsResolvingDuplicates}">
+
+          <TextBlock DockPanel.Dock="Top" FontWeight="SemiBold" Margin="0,0,0,6">
+            <Run Text="Cards to Add (" />
+            <Run Text="{Binding PendingItems.Count}" />
+            <Run Text=")" />
+          </TextBlock>
+
+          <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding PendingItems}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:BulkAddItem">
+                  <Border Background="{DynamicResource ThemeSurfaceBrush}" CornerRadius="6"
+                          Padding="10,8" Margin="0,0,0,6">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Grid.Column="0" Spacing="6">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="13"
+                                   TextTrimming="CharacterEllipsis" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="Qty" FontSize="10" Opacity="0.6" />
+                            <NumericUpDown Value="{Binding Quantity}" Minimum="1" Maximum="99"
+                                           Width="70" FontSize="12" />
+                          </StackPanel>
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="Condition" FontSize="10" Opacity="0.6" />
+                            <ComboBox ItemsSource="{x:Static vm:BulkAddViewModel.Conditions}"
+                                      SelectedItem="{Binding Condition}"
+                                      Width="80" FontSize="12" />
+                          </StackPanel>
+                          <StackPanel Spacing="2" VerticalAlignment="Bottom">
+                            <CheckBox IsChecked="{Binding Foil}" Content="Foil" FontSize="12" />
+                          </StackPanel>
+                        </StackPanel>
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="✕" Padding="6,4" VerticalAlignment="Top"
+                              FontSize="11" Opacity="0.6"
+                              Command="{Binding $parent[Window].((vm:BulkAddViewModel)DataContext).RemoveItemCommand}"
+                              CommandParameter="{Binding}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <!-- Empty state -->
+          <TextBlock DockPanel.Dock="Top" Opacity="0.4" TextWrapping="Wrap" Margin="4,16"
+                     IsVisible="{Binding PendingItems.Count, Converter={x:Static ObjectConverters.IsNull}}"
+                     Text="Search for cards on the left and click + Add to list." />
+
+        </DockPanel>
+
+        <!-- Duplicate resolution (replaces queue when duplicates found) -->
+        <DockPanel Grid.Row="0" Grid.RowSpan="2"
+                   IsVisible="{Binding IsResolvingDuplicates}">
+
+          <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,10">
+            <TextBlock FontWeight="SemiBold" FontSize="14" Text="Duplicate Cards Found" />
+            <TextBlock FontSize="12" Opacity="0.7" TextWrapping="Wrap">
+              The following cards are already in your collection.
+              Choose whether to use the existing copy or add another.
+            </TextBlock>
+          </StackPanel>
+
+          <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,10,0,0">
+            <Button Content="Confirm" Classes="accent" Command="{Binding ConfirmResolutionCommand}" />
+            <Button Content="Back" Command="{Binding CancelResolutionCommand}" />
+          </StackPanel>
+
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Duplicates}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DuplicateResolutionItem">
+                  <Border Background="{DynamicResource ThemeSurfaceBrush}" CornerRadius="6"
+                          Padding="10,8" Margin="0,0,0,6">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="{Binding CardLabel}" FontWeight="SemiBold"
+                                 TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding ExistingInfo}" FontSize="11" Opacity="0.65" />
+                      <StackPanel Orientation="Horizontal" Spacing="16">
+                        <RadioButton Content="Use existing copy"
+                                     IsChecked="{Binding UseExisting}" GroupName="{Binding CardLabel}" />
+                        <RadioButton Content="Add another copy"
+                                     IsChecked="{Binding UseExisting, Converter={x:Static BoolConverters.Not}}"
+                                     GroupName="{Binding CardLabel}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+        </DockPanel>
+
+      </Grid>
+
+    </Grid>
+
+    <!-- ── Bottom action bar ─────────────────────────────────────────────── -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+      <Button Content="{Binding SubmitLabel}" Classes="accent"
+              Command="{Binding SubmitCommand}"
+              IsEnabled="{Binding PendingItems.Count}"
+              IsVisible="{Binding !IsResolvingDuplicates}"
+              Padding="12,6" />
+      <Button Content="Cancel" Command="{Binding CancelCommand}"
+              IsVisible="{Binding !IsResolvingDuplicates}"
+              Padding="12,6" />
+    </StackPanel>
+
+  </Grid>
+</Window>

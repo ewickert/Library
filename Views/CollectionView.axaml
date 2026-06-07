@@ -47,6 +47,8 @@
         <!-- Add card -->
         <Button Content="+ Add" Click="OnAddCardClick" ToolTip.Tip="Add a card to the collection"
                 Padding="8,4" />
+        <Button Content="+ Bulk Add" Click="OnBulkAddClick" ToolTip.Tip="Add multiple cards at once"
+                Padding="8,4" />
 
         <!-- Bulk edit — appears when 2+ cards are selected -->
         <Button Command="{Binding BulkEditCommand}" Padding="8,4"

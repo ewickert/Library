@@ -321,23 +321,37 @@ public class ScryfallService
         if (string.IsNullOrWhiteSpace(cardName)) return [];
         try
         {
-            // !"exact name" searches for that exact name; unique=prints returns one result per printing
             var query = $"!\"{cardName}\"";
-            var json = await ApiGetAsync($"cards/search?q={Uri.EscapeDataString(query)}&unique=prints&order=released", ct);
-            if (json == null) return [];
-            using var doc = JsonDocument.Parse(json);
+            var url = $"cards/search?q={Uri.EscapeDataString(query)}&unique=prints&order=released";
             var results = new List<ScryfallCardData>();
-            if (doc.RootElement.TryGetProperty("data", out var data))
+
+            while (url != null)
             {
-                foreach (var card in data.EnumerateArray())
+                ct.ThrowIfCancellationRequested();
+                var json = await ApiGetAsync(url, ct);
+                if (json == null) break;
+
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("data", out var data))
+                    foreach (var card in data.EnumerateArray())
+                    {
+                        var parsed = ParseCardData(card);
+                        if (parsed != null) results.Add(parsed);
+                    }
+
+                url = null;
+                if (doc.RootElement.TryGetProperty("has_more", out var hasMore) && hasMore.GetBoolean() &&
+                    doc.RootElement.TryGetProperty("next_page", out var nextPage))
                 {
-                    var parsed = ParseCardData(card);
-                    if (parsed != null) results.Add(parsed);
-                    if (results.Count >= 80) break;
+                    var nextUrl = nextPage.GetString();
+                    if (nextUrl?.StartsWith("https://api.scryfall.com/") == true)
+                        url = nextUrl["https://api.scryfall.com/".Length..];
                 }
             }
+
             return results;
         }
+        catch (OperationCanceledException) { return []; }
         catch { return []; }
     }
 

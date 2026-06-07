@@ -212,6 +212,14 @@
           <Rectangle Width="1" Height="18" Margin="6,0" VerticalAlignment="Center"
                      Fill="{DynamicResource SystemControlForegroundBaseLowBrush}" Opacity="0.35" />
 
+          <Button Content="+ Bulk Add" Click="OnBulkAddClick" Padding="8,4"
+                  ToolTip.Tip="Add multiple cards to this deck and collection"
+                  IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+          <!-- ─── divider ─── -->
+          <Rectangle Width="1" Height="18" Margin="6,0" VerticalAlignment="Center"
+                     Fill="{DynamicResource SystemControlForegroundBaseLowBrush}" Opacity="0.35" />
+
           <!-- Deck actions menu -->
           <DropDownButton Padding="10,4" ToolTip.Tip="Deck actions">
             <DropDownButton.Content>

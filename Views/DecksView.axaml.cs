@@ -420,6 +420,20 @@ public partial class DecksView : UserControl
         }
         return null;
     }
+
+    private void OnBulkAddClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var vm = DataContext as DecksViewModel;
+        var win = TopLevel.GetTopLevel(this) as MainWindow;
+        if (vm?.SelectedDeck == null || win == null) return;
+        var dialog = new BulkAddWindow(win.DatabaseService, win.ScryfallService, vm.SelectedDeck.Id);
+        dialog.ShowDialog(win).ContinueWith(_ =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                vm.LoadDecks();
+                vm.ReloadDeckCards();
+            }));
+    }
 }
 
 

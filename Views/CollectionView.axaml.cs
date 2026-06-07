@@ -240,6 +240,16 @@ public partial class CollectionView : UserControl
             Avalonia.Threading.Dispatcher.UIThread.Post(() => vm.LoadCards()));
     }
 
+    private void OnBulkAddClick(object? sender, RoutedEventArgs e)
+    {
+        var vm = ViewModel;
+        var win = TopLevel.GetTopLevel(this) as MainWindow;
+        if (vm == null || win == null) return;
+        var dialog = new BulkAddWindow(win.DatabaseService, win.ScryfallService);
+        dialog.ShowDialog(win).ContinueWith(_ =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => vm.LoadCards()));
+    }
+
     private void OnEditCardClick(object? sender, RoutedEventArgs e)
     {
         var vm = ViewModel;

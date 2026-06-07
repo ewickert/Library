@@ -2,9 +2,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using Library.Models;
 using Library.ViewModels;
 using System.ComponentModel;
+using System.Linq;
 
 namespace Library.Views;
 
@@ -18,6 +20,7 @@ public partial class CollectionView : UserControl
         InitializeComponent();
         GridScrollViewer.AddHandler(PointerWheelChangedEvent, OnGridWheel, RoutingStrategies.Tunnel);
         CollectionPanel.AddHandler(DragDrop.DropEvent, OnCollectionDrop, RoutingStrategies.Bubble);
+        CollectionPanel.AddHandler(DragDrop.DragOverEvent, OnCollectionDragOver, RoutingStrategies.Bubble);
         SizeChanged += OnSizeChanged;
         DataContextChanged += OnDataContextChanged;
         UpdateCompactClass(Bounds.Width);
@@ -84,6 +87,17 @@ public partial class CollectionView : UserControl
         }
     }
 
+    private void OnCollectionDragOver(object? sender, DragEventArgs e)
+    {
+        if (e.Data.GetFiles()?.Any(f =>
+            f.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ||
+            f.Name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)) == true)
+        {
+            e.DragEffects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+    }
+
     private async void OnCollectionDrop(object? sender, DragEventArgs e)
     {
         var vm = ViewModel;
@@ -98,6 +112,19 @@ public partial class CollectionView : UserControl
                  e.Data.Get(BrowseDragFormats.MtgJsonCard) is MtgJson.Models.DeckCard dc)
         {
             vm.AddMtgJsonCardToCollection(dc);
+        }
+        else if (e.Data.GetFiles() is { } droppedFiles &&
+                 TopLevel.GetTopLevel(this) is MainWindow win)
+        {
+            var csvPaths = droppedFiles
+                .Select(f => f.TryGetLocalPath())
+                .OfType<string>()
+                .Where(p => p.EndsWith(".csv", StringComparison.OrdinalIgnoreCase) ||
+                            p.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var path in csvPaths)
+                await win.ImportCsvFromPathAsync(path);
         }
     }
 

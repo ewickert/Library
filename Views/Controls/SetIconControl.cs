@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Svg.Skia;
 using Library.Services;
 using System;
 
@@ -17,10 +18,23 @@ public class SetIconControl : UserControl
     public static readonly StyledProperty<string?> SetCodeProperty =
         AvaloniaProperty.Register<SetIconControl, string?>(nameof(SetCode));
 
+    public static readonly StyledProperty<string?> RarityProperty =
+        AvaloniaProperty.Register<SetIconControl, string?>(nameof(Rarity));
+
     public string? SetCode
     {
         get => GetValue(SetCodeProperty);
         set => SetValue(SetCodeProperty, value);
+    }
+
+    /// <summary>
+    /// When set, renders the icon tinted with the standard MTG rarity color
+    /// (common=white, uncommon=silver, rare=gold, mythic=orange).
+    /// </summary>
+    public string? Rarity
+    {
+        get => GetValue(RarityProperty);
+        set => SetValue(RarityProperty, value);
     }
 
     private readonly Image _image;
@@ -59,7 +73,7 @@ public class SetIconControl : UserControl
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == SetCodeProperty)
+        if (change.Property == SetCodeProperty || change.Property == RarityProperty)
             Refresh();
     }
 
@@ -79,9 +93,15 @@ public class SetIconControl : UserControl
             return;
         }
 
-        var icon = SetIconService.Instance.TryGetIcon(code, IsDarkTheme)
-                ?? SetIconService.Instance.TryGetIcon(code, false);
-        _image.Source = icon;
-        IsVisible = icon != null;
+        // TryGetSource/TryGetRaritySource return SvgSource (thread-safe plain class);
+        // SvgImage is created here on the UI thread to satisfy AvaloniaObject affinity.
+        var rarity = Rarity;
+        SvgSource? source = !string.IsNullOrEmpty(rarity)
+            ? SetIconService.Instance.TryGetRaritySource(code, rarity)
+            : SetIconService.Instance.TryGetSource(code, IsDarkTheme)
+              ?? SetIconService.Instance.TryGetSource(code, false);
+
+        _image.Source = source != null ? new SvgImage { Source = source } : null;
+        IsVisible = source != null;
     }
 }

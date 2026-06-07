@@ -122,6 +122,7 @@ public partial class CollectionViewModel : ObservableObject
 
     public void LoadCards()
     {
+        ClearMultiSelection();
         var all = _db.GetAllCards();
 
         IEnumerable<Card> filtered = all;
@@ -383,6 +384,62 @@ public partial class CollectionViewModel : ObservableObject
         Cards.Remove(SelectedCard);
         SelectedCard = null;
     }
+
+    // ── Multi-selection ───────────────────────────────────────────────────────
+    private readonly HashSet<int> _selectedIds = new();
+
+    public int SelectionCount => _selectedIds.Count;
+    public bool HasMultipleSelected => _selectedIds.Count > 1;
+
+    public IReadOnlyList<Card> GetSelectedCards() =>
+        Cards.Where(c => _selectedIds.Contains(c.Id)).ToList();
+
+    /// <summary>Called by the DataGrid's SelectionChanged handler to sync its selection to the VM.</summary>
+    public void SetSelectedCards(IEnumerable<Card> cards)
+    {
+        _selectedIds.Clear();
+        foreach (var c in cards) _selectedIds.Add(c.Id);
+        SyncSlotSelection();
+        OnPropertyChanged(nameof(SelectionCount));
+        OnPropertyChanged(nameof(HasMultipleSelected));
+        BulkEditCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Toggles a card in/out of the multi-selection (used by grid-view Ctrl+Click).</summary>
+    public void ToggleCardSelection(Card card)
+    {
+        if (!_selectedIds.Remove(card.Id))
+            _selectedIds.Add(card.Id);
+        SyncSlotSelection();
+        OnPropertyChanged(nameof(SelectionCount));
+        OnPropertyChanged(nameof(HasMultipleSelected));
+        BulkEditCommand.NotifyCanExecuteChanged();
+        SelectedCard = card;
+    }
+
+    public void ClearMultiSelection()
+    {
+        if (_selectedIds.Count == 0) return;
+        _selectedIds.Clear();
+        SyncSlotSelection();
+        OnPropertyChanged(nameof(SelectionCount));
+        OnPropertyChanged(nameof(HasMultipleSelected));
+        BulkEditCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SyncSlotSelection()
+    {
+        foreach (var slot in CardSlots)
+            slot.IsSelected = _selectedIds.Contains(slot.Card.Id);
+    }
+
+    /// <summary>Set by the view to open the bulk-edit dialog with the currently selected cards.</summary>
+    public Action<IReadOnlyList<Card>>? RequestBulkEdit { get; set; }
+
+    private bool CanBulkEdit() => HasMultipleSelected;
+
+    [RelayCommand(CanExecute = nameof(CanBulkEdit))]
+    private void BulkEdit() => RequestBulkEdit?.Invoke(GetSelectedCards());
 
 }
 

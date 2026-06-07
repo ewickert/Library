@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using Library.Models;
 using Library.ViewModels;
 using System.ComponentModel;
@@ -15,10 +16,14 @@ public partial class CollectionView : UserControl
     private CollectionViewModel? ViewModel => DataContext as CollectionViewModel;
     private CollectionViewModel? _subscribedViewModel;
 
+    // Guards against SelectionChanged re-entrance when SelectedCard changes via binding
+    private bool _suppressDataGridSync;
+
     public CollectionView()
     {
         InitializeComponent();
         GridScrollViewer.AddHandler(PointerWheelChangedEvent, OnGridWheel, RoutingStrategies.Tunnel);
+        GridScrollViewer.AddHandler(PointerPressedEvent, OnGridPointerPressed, RoutingStrategies.Tunnel);
         CollectionPanel.AddHandler(DragDrop.DropEvent, OnCollectionDrop, RoutingStrategies.Bubble);
         CollectionPanel.AddHandler(DragDrop.DragOverEvent, OnCollectionDragOver, RoutingStrategies.Bubble);
         SizeChanged += OnSizeChanged;
@@ -29,11 +34,15 @@ public partial class CollectionView : UserControl
     private void OnDataContextChanged(object? sender, EventArgs e)
     {
         if (_subscribedViewModel != null)
+        {
             _subscribedViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _subscribedViewModel.RequestBulkEdit = null;
+        }
 
         if (DataContext is CollectionViewModel vm)
         {
             vm.PropertyChanged += OnViewModelPropertyChanged;
+            vm.RequestBulkEdit = OpenBulkEditDialog;
             _subscribedViewModel = vm;
         }
         else
@@ -48,6 +57,14 @@ public partial class CollectionView : UserControl
     {
         if (e.PropertyName is nameof(CollectionViewModel.IsGridView))
             UpdateCompactClass(Bounds.Width);
+
+        // When SelectedCard changes due to a VM-side update (e.g. ToggleCardSelection),
+        // suppress the DataGrid's SelectionChanged from re-firing SetSelectedCards.
+        if (e.PropertyName is nameof(CollectionViewModel.SelectedCard))
+        {
+            _suppressDataGridSync = true;
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => _suppressDataGridSync = false);
+        }
     }
 
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) =>
@@ -77,6 +94,7 @@ public partial class CollectionView : UserControl
             CompactCardDetailPane.IsVisible = compact && vm is { IsGridView: false };
     }
 
+    // ── Grid view: zoom with Ctrl+scroll ─────────────────────────────────────
     private void OnGridWheel(object? sender, PointerWheelEventArgs e)
     {
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Meta) && !e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
@@ -87,6 +105,75 @@ public partial class CollectionView : UserControl
         }
     }
 
+    // ── Grid view: Cmd/Ctrl+Click toggles multi-selection ────────────────────
+    private void OnGridPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var vm = ViewModel;
+        if (vm == null) return;
+        if (!e.GetCurrentPoint(null).Properties.IsLeftButtonPressed) return;
+
+        bool isMultiKey = e.KeyModifiers.HasFlag(KeyModifiers.Control) ||
+                          e.KeyModifiers.HasFlag(KeyModifiers.Meta);
+
+        if (!isMultiKey)
+        {
+            // Normal click — clear multi-selection; the Button's command selects the card
+            vm.ClearMultiSelection();
+            return;
+        }
+
+        // Ctrl/Cmd held — toggle the clicked card and swallow the event so the
+        // Button's SelectCardCommand doesn't also fire
+        var slot = FindSlotFromEvent(e);
+        if (slot == null) return;
+
+        vm.ToggleCardSelection(slot.Card);
+        e.Handled = true;
+    }
+
+    private static CardSlotViewModel? FindSlotFromEvent(PointerPressedEventArgs e)
+    {
+        var element = e.Source as Visual;
+        while (element != null)
+        {
+            if (element is Control { DataContext: CardSlotViewModel slot }) return slot;
+            element = element.GetVisualParent();
+        }
+        return null;
+    }
+
+    // ── DataGrid: sync extended selection to VM ───────────────────────────────
+    private void OnDataGridSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressDataGridSync) return;
+        var vm = ViewModel;
+        if (vm == null) return;
+
+        _suppressDataGridSync = true;
+        try
+        {
+            var selected = CollectionDataGrid.SelectedItems.OfType<Card>().ToList();
+            vm.SetSelectedCards(selected);
+        }
+        finally
+        {
+            _suppressDataGridSync = false;
+        }
+    }
+
+    // ── Bulk edit dialog ──────────────────────────────────────────────────────
+    private void OpenBulkEditDialog(IReadOnlyList<Card> cards)
+    {
+        var vm = ViewModel;
+        var win = TopLevel.GetTopLevel(this) as MainWindow;
+        if (win == null || vm == null) return;
+
+        var dialog = new BulkEditCardWindow(win.DatabaseService, win.ScryfallService, cards);
+        dialog.ShowDialog(win).ContinueWith(_ =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => vm.LoadCards()));
+    }
+
+    // ── Drag and drop ─────────────────────────────────────────────────────────
     private void OnCollectionDragOver(object? sender, DragEventArgs e)
     {
         if (e.Data.GetFiles()?.Any(f =>
@@ -128,6 +215,7 @@ public partial class CollectionView : UserControl
         }
     }
 
+    // ── Search help ───────────────────────────────────────────────────────────
     private async void OnSearchHelpClick(object? sender, RoutedEventArgs e)
     {
         var win = new SearchHelpWindow();
@@ -137,10 +225,10 @@ public partial class CollectionView : UserControl
             await win.ShowDialog(owner);
             return;
         }
-
         win.Show();
     }
 
+    // ── Add / Edit card ───────────────────────────────────────────────────────
     private void OnAddCardClick(object? sender, RoutedEventArgs e)
     {
         var vm = ViewModel;

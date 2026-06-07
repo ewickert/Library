@@ -56,6 +56,7 @@ public partial class CardSlotViewModel : ObservableObject
 
     [ObservableProperty] private Bitmap? _image;
     [ObservableProperty] private bool _isLoading = true;
+    [ObservableProperty] private bool _isSelected;
 
     public CardSlotViewModel(Card card, ScryfallService scryfall)
     {

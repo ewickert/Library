@@ -1,0 +1,163 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Library.ViewModels"
+        xmlns:svc="using:Library.Services"
+        x:Class="Library.Views.BulkEditCardWindow"
+        x:DataType="vm:BulkEditCardViewModel"
+        Title="{Binding Title}"
+        Width="680" Height="620" MinWidth="500" MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True">
+
+  <Grid ColumnDefinitions="*,5,220" Margin="16">
+
+    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+    <StackPanel Spacing="10" Margin="0,0,12,0">
+
+      <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="Bold" Margin="0,0,0,4" />
+
+      <!-- ── Printing picker ─────────────────────────────────────────────── -->
+      <Border Background="{DynamicResource ThemeSurfaceBrush}" CornerRadius="6" Padding="10">
+        <StackPanel Spacing="8">
+
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Change Printing" FontWeight="SemiBold" VerticalAlignment="Center" />
+            <ProgressBar IsVisible="{Binding IsLoadingPrintings}" IsIndeterminate="True"
+                         Width="60" Height="6" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <!-- Printings of the first card's name -->
+          <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                        MaxHeight="110"
+                        IsVisible="{Binding PrintingOptions.Count}">
+            <ItemsControl ItemsSource="{Binding PrintingOptions}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" Spacing="4" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="svc:ScryfallCardData">
+                  <Button Padding="6,4" Background="Transparent"
+                          Command="{Binding $parent[Window].((vm:BulkEditCardViewModel)DataContext).SelectPrintingCommand}"
+                          CommandParameter="{Binding}">
+                    <StackPanel Spacing="2" Width="52">
+                      <TextBlock Text="{Binding SetCode}" FontSize="9" FontWeight="SemiBold"
+                                 HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding CollectorNumber}" FontSize="8" HorizontalAlignment="Center"
+                                 Opacity="0.65" />
+                    </StackPanel>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+
+          <!-- Scryfall search for a different card name -->
+          <TextBlock Text="Or search for a different card:" FontSize="11" Opacity="0.7" />
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+            <TextBox Grid.Column="0" Text="{Binding PrintingSearchQuery}" Watermark="Card name…" />
+            <Button Grid.Column="1" Content="Search"
+                    Command="{Binding SearchPrintingsCommand}"
+                    IsEnabled="{Binding !IsSearchingPrintings}" />
+          </Grid>
+          <ProgressBar IsVisible="{Binding IsSearchingPrintings}" IsIndeterminate="True" />
+
+          <ListBox ItemsSource="{Binding ScryfallResults}" MaxHeight="130"
+                   IsVisible="{Binding ScryfallResults.Count}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="svc:ScryfallCardData">
+                <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Background="Transparent" Padding="4,2"
+                        Command="{Binding $parent[Window].((vm:BulkEditCardViewModel)DataContext).SelectPrintingCommand}"
+                        CommandParameter="{Binding}">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="{Binding SetCode}" Opacity="0.6" FontSize="11" />
+                    <TextBlock Text="{Binding CollectorNumber}" Opacity="0.6" FontSize="11" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- Selected printing summary -->
+          <StackPanel IsVisible="{Binding SelectedPrinting, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      Orientation="Horizontal" Spacing="10">
+            <TextBlock VerticalAlignment="Center" FontSize="12">
+              <Run Text="→ " FontWeight="Bold" />
+              <Run Text="{Binding SelectedPrinting.Name}" FontWeight="SemiBold" />
+              <Run Text=" (" />
+              <Run Text="{Binding SelectedPrinting.SetCode}" />
+              <Run Text=" #" />
+              <Run Text="{Binding SelectedPrinting.CollectorNumber}" />
+              <Run Text=")" />
+            </TextBlock>
+            <Button Content="✕" Padding="6,2" FontSize="10"
+                    Command="{Binding ClearPrintingCommand}" />
+          </StackPanel>
+
+        </StackPanel>
+      </Border>
+
+      <!-- ── Field overrides ────────────────────────────────────────────── -->
+      <Border Background="{DynamicResource ThemeSurfaceBrush}" CornerRadius="6" Padding="10">
+        <StackPanel Spacing="8">
+          <TextBlock Text="Field Overrides" FontWeight="SemiBold" />
+          <TextBlock Text="Only fields set to a real value will be changed." FontSize="11" Opacity="0.65" />
+
+          <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+            <StackPanel Grid.Column="0" Spacing="4">
+              <Label Content="Condition" />
+              <ComboBox ItemsSource="{Binding ConditionOptions}"
+                        SelectedItem="{Binding Condition}"
+                        HorizontalAlignment="Stretch" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="4">
+              <Label Content="Language" />
+              <ComboBox ItemsSource="{Binding LanguageOptions}"
+                        SelectedItem="{Binding Language}"
+                        HorizontalAlignment="Stretch" />
+            </StackPanel>
+            <StackPanel Grid.Column="2" Spacing="4">
+              <Label Content="Foil" />
+              <ComboBox ItemsSource="{Binding FoilOptions}"
+                        SelectedItem="{Binding FoilSelection}"
+                        HorizontalAlignment="Stretch" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,8">
+        <Button Content="{Binding Title, StringFormat='Apply to {0}'}"
+                Command="{Binding SaveCommand}" Classes="accent" Width="160" />
+        <Button Content="Cancel" Command="{Binding CancelCommand}" Width="100" />
+      </StackPanel>
+
+    </StackPanel>
+    </ScrollViewer>
+
+    <!-- Splitter -->
+    <GridSplitter Grid.Column="1" Width="5" ResizeDirection="Columns"
+                  Background="Transparent" Cursor="SizeWestEast" />
+
+    <!-- Printing preview -->
+    <DockPanel Grid.Column="2" Margin="0,44,0,0" LastChildFill="True">
+      <TextBlock DockPanel.Dock="Top" Text="Selected Printing" FontWeight="SemiBold" Margin="0,0,0,8" />
+      <Border CornerRadius="6" ClipToBounds="True" MinWidth="80"
+              Background="{DynamicResource ThemeSurfaceBrush}">
+        <Panel>
+          <TextBlock Text="No printing selected" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     Opacity="0.5" TextWrapping="Wrap" Margin="8"
+                     IsVisible="{Binding PrintingPreview, Converter={x:Static ObjectConverters.IsNull}}" />
+          <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoadingPreview}"
+                       VerticalAlignment="Bottom" Margin="8" />
+          <Image Source="{Binding PrintingPreview}" Stretch="Uniform"
+                 IsVisible="{Binding PrintingPreview, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </Panel>
+      </Border>
+    </DockPanel>
+
+  </Grid>
+</Window>

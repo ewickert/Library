@@ -48,6 +48,15 @@
         <Button Content="+ Add" Click="OnAddCardClick" ToolTip.Tip="Add a card to the collection"
                 Padding="8,4" />
 
+        <!-- Bulk edit — appears when 2+ cards are selected -->
+        <Button Command="{Binding BulkEditCommand}" Padding="8,4"
+                IsVisible="{Binding HasMultipleSelected}"
+                Background="{DynamicResource ThemeAccentBrush}" Foreground="White">
+          <TextBlock>
+            <Run Text="Edit " /><Run Text="{Binding SelectionCount}" /><Run Text=" cards…" />
+          </TextBlock>
+        </Button>
+
         <!-- ─── divider ─── -->
         <Rectangle Width="1" Height="18" Margin="4,0" VerticalAlignment="Center"
                    Fill="{DynamicResource SystemControlForegroundBaseLowBrush}" Opacity="0.35" />
@@ -89,11 +98,13 @@
       <DataGrid x:Name="CollectionDataGrid"
                 ItemsSource="{Binding Cards}"
                 SelectedItem="{Binding SelectedCard}"
+                SelectionMode="Extended"
                 IsReadOnly="False"
                 AutoGenerateColumns="False"
                 GridLinesVisibility="Horizontal"
                 CanUserResizeColumns="True"
                 IsVisible="{Binding !IsGridView}"
+                SelectionChanged="OnDataGridSelectionChanged"
                 RowEditEnded="OnCollectionRowEditEnded"
                 Margin="8,0,4,8">
         <DataGrid.Styles>
@@ -248,24 +259,35 @@
                         </StackPanel>
                       </Panel>
                     </StackPanel>
+                    <!-- Selection highlight -->
+                    <Border IsVisible="{Binding IsSelected}"
+                            BorderBrush="{DynamicResource ThemeAccentBrush}"
+                            BorderThickness="3" CornerRadius="8" />
                     <Border IsVisible="{Binding Card.Foil}"
                             Background="#88FFD700" CornerRadius="4"
                             Padding="4,2" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
                       <TextBlock Text="✦ Foil" FontSize="9" FontWeight="Bold" Foreground="#805500" />
                     </Border>
-                    <Border Background="#AA000000" CornerRadius="0,0,8,8"
-                            VerticalAlignment="Bottom" Padding="6,3">
-                      <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="{Binding Card.Name}" FontSize="10" Foreground="White"
-                                   TextTrimming="CharacterEllipsis" MaxWidth="110" />
-                        <TextBlock Text="{Binding Card.Condition}" FontSize="10" Foreground="#AAAAAA" />
-                        <!-- Market price + delta -->
-                        <TextBlock Text="{Binding CurrentPriceLabel}" FontSize="10" Foreground="#DDDDDD"
-                                   IsVisible="{Binding Card.CurrentMarketPrice, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                        <TextBlock Text="{Binding PriceDeltaLabel}" FontSize="10" Foreground="#44FF88"
-                                   IsVisible="{Binding IsPriceUp}" />
-                        <TextBlock Text="{Binding PriceDeltaLabel}" FontSize="10" Foreground="#FF5555"
-                                   IsVisible="{Binding IsPriceDown}" />
+                    <Border Background="#CC000000" CornerRadius="0,0,8,8"
+                            VerticalAlignment="Bottom" Padding="8,6">
+                      <StackPanel Spacing="3">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <controls:SetIconControl SetCode="{Binding Card.SetCode}"
+                                                   Rarity="{Binding Card.Rarity}"
+                                                   Width="16" Height="16" />
+                          <TextBlock Text="{Binding Card.Name}" FontSize="12" FontWeight="SemiBold"
+                                     Foreground="White" TextTrimming="CharacterEllipsis" MaxWidth="140" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding Card.Condition}" FontSize="11" Foreground="#BBBBBB" />
+                          <!-- Market price + delta -->
+                          <TextBlock Text="{Binding CurrentPriceLabel}" FontSize="11" Foreground="#DDDDDD"
+                                     IsVisible="{Binding Card.CurrentMarketPrice, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          <TextBlock Text="{Binding PriceDeltaLabel}" FontSize="11" Foreground="#44FF88"
+                                     IsVisible="{Binding IsPriceUp}" />
+                          <TextBlock Text="{Binding PriceDeltaLabel}" FontSize="11" Foreground="#FF5555"
+                                     IsVisible="{Binding IsPriceDown}" />
+                        </StackPanel>
                       </StackPanel>
                     </Border>
                   </Panel>

@@ -37,6 +37,9 @@ public partial class AddEditCardViewModel : ObservableObject
     [ObservableProperty] private Avalonia.Media.Imaging.Bitmap? _previewImage;
     [ObservableProperty] private bool _isLoadingPreview;
 
+    [ObservableProperty] private ObservableCollection<ScryfallCardData> _printingOptions = new();
+    [ObservableProperty] private bool _isLoadingPrintings;
+
     public static string[] Conditions => ["M", "NM", "LP", "MP", "HP", "DMG"];
     public static string[] Languages => ["en", "de", "fr", "it", "es", "pt", "ja", "ko", "ru", "zhs", "zht", "he", "la", "grc", "ar", "sa", "ph"];
     public static string[] Currencies => ["USD", "EUR", "GBP", "JPY"];
@@ -49,6 +52,7 @@ public partial class AddEditCardViewModel : ObservableObject
     public event Action? Cancelled;
 
     private CancellationTokenSource? _searchCts;
+    private CancellationTokenSource? _printingsCts;
 
     public AddEditCardViewModel(DatabaseService db, ScryfallService scryfall, Card? cardToEdit = null)
     {
@@ -76,6 +80,8 @@ public partial class AddEditCardViewModel : ObservableObject
             ColorIdentity = cardToEdit.ColorIdentity ?? string.Empty;
             ManaCost = cardToEdit.ManaCost ?? string.Empty;
             TypeLine = cardToEdit.TypeLine ?? string.Empty;
+
+            _ = LoadPrintingsAsync(cardToEdit.Name);
         }
     }
 
@@ -115,6 +121,42 @@ public partial class AddEditCardViewModel : ObservableObject
         {
             PreviewImage = await _scryfall.GetCardImageAsync(card.ScryfallId);
         }
+        finally { IsLoadingPreview = false; }
+
+        _ = LoadPrintingsAsync(card.Name);
+    }
+
+    private async Task LoadPrintingsAsync(string cardName)
+    {
+        if (string.IsNullOrWhiteSpace(cardName)) return;
+        _printingsCts?.Cancel();
+        _printingsCts = new CancellationTokenSource();
+        IsLoadingPrintings = true;
+        try
+        {
+            var printings = await _scryfall.GetAlternatePrintingsAsync(cardName, _printingsCts.Token);
+            if (!_printingsCts.Token.IsCancellationRequested)
+                PrintingOptions = new ObservableCollection<ScryfallCardData>(printings);
+        }
+        catch (OperationCanceledException) { }
+        finally { IsLoadingPrintings = false; }
+    }
+
+    /// <summary>Applies a printing selection — updates set/collector/ScryfallId without touching name, quantity, etc.</summary>
+    [RelayCommand]
+    private async Task SelectPrinting(ScryfallCardData printing)
+    {
+        SetCode = printing.SetCode;
+        SetName = printing.SetName;
+        CollectorNumber = printing.CollectorNumber;
+        Rarity = printing.Rarity;
+        ScryfallId = printing.ScryfallId;
+        ColorIdentity = printing.ColorIdentity;
+        ManaCost = printing.ManaCost;
+        TypeLine = printing.TypeLine;
+
+        IsLoadingPreview = true;
+        try { PreviewImage = await _scryfall.GetCardImageAsync(printing.ScryfallId); }
         finally { IsLoadingPreview = false; }
     }
 

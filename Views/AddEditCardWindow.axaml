@@ -49,6 +49,45 @@
           </StackPanel>
         </Border>
 
+        <!-- Printing picker — visible once printings are loaded -->
+        <Border Background="{DynamicResource ThemeSurfaceBrush}"
+                CornerRadius="6" Padding="10" Margin="0,0,0,8"
+                IsVisible="{Binding PrintingOptions.Count}">
+          <StackPanel Spacing="6">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <TextBlock Text="Printings" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <ProgressBar IsVisible="{Binding IsLoadingPrintings}" IsIndeterminate="True"
+                           Width="60" Height="6" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="Click a printing to switch set / collector number."
+                       FontSize="11" Opacity="0.65" />
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          MaxHeight="110">
+              <ItemsControl ItemsSource="{Binding PrintingOptions}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="4" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="svc:ScryfallCardData">
+                    <Button Padding="6,4" Background="Transparent"
+                            Command="{Binding $parent[Window].((vm:AddEditCardViewModel)DataContext).SelectPrintingCommand}"
+                            CommandParameter="{Binding}">
+                      <StackPanel Spacing="2" Width="52">
+                        <TextBlock Text="{Binding SetCode}" FontSize="9" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding CollectorNumber}" FontSize="8" HorizontalAlignment="Center"
+                                   Opacity="0.65" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </StackPanel>
+        </Border>
+
         <!-- Card fields -->
         <Label Content="Name *" />
         <TextBox Text="{Binding Name}" Watermark="Card name" />

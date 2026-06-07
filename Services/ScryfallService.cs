@@ -36,6 +36,8 @@ public class ScryfallService
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string>
         _jsonCache = new(StringComparer.Ordinal);
 
+    public string ImageCacheDirectory => _cacheDir;
+
     public ScryfallService()
     {
         Instance = this;

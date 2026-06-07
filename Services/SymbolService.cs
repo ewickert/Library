@@ -1,5 +1,6 @@
 using Avalonia.Media;
 using Avalonia.Svg.Skia;
+using Avalonia.Threading;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -22,7 +23,11 @@ public sealed class SymbolService
 
     private readonly HttpClient _http = new()
     {
-        DefaultRequestHeaders = { { "User-Agent", "MTGLibrary/1.0" } }
+        DefaultRequestHeaders =
+        {
+            { "User-Agent", "MTGLibrary/1.0" },
+            { "Accept", "application/json" },
+        }
     };
 
     private readonly ConcurrentDictionary<string, IImage> _images =
@@ -52,7 +57,7 @@ public sealed class SymbolService
     public void BeginLoad(CancellationToken ct = default)
     {
         if (_loadTask is { IsCompleted: false }) return;
-        _loadTask = LoadAllAsync(ct);
+        _loadTask = Task.Run(() => LoadAllAsync(ct), ct);
     }
 
     /// <summary>Returns the cached IImage for a symbol token like "{W}" or "{T}", or null if not yet loaded.</summary>
@@ -74,7 +79,7 @@ public sealed class SymbolService
         {
             try
             {
-                var manifestJson = await File.ReadAllTextAsync(ManifestPath, ct);
+                var manifestJson = await File.ReadAllTextAsync(ManifestPath, ct).ConfigureAwait(false);
                 using var manifestDoc = JsonDocument.Parse(manifestJson);
                 foreach (var prop in manifestDoc.RootElement.EnumerateObject())
                 {
@@ -87,13 +92,13 @@ public sealed class SymbolService
             catch { }
 
             if (_images.Count > 0)
-                SymbolsUpdated?.Invoke(this, EventArgs.Empty);
+                NotifyOnUIThread();
         }
 
         // ── Phase 2: fetch fresh symbol list, download any missing SVGs ────────
         try
         {
-            var json = await _http.GetStringAsync("https://api.scryfall.com/symbology", ct);
+            var json = await _http.GetStringAsync("https://api.scryfall.com/symbology", ct).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("data", out var data)) return;
 
@@ -118,7 +123,7 @@ public sealed class SymbolService
             try
             {
                 var updated = JsonSerializer.Serialize(manifest);
-                await File.WriteAllTextAsync(ManifestPath, updated, ct);
+                await File.WriteAllTextAsync(ManifestPath, updated, ct).ConfigureAwait(false);
             }
             catch { }
 
@@ -130,12 +135,12 @@ public sealed class SymbolService
                 ct.ThrowIfCancellationRequested();
                 var batch = entries.GetRange(i, Math.Min(batchSize, entries.Count - i));
                 var tasks = batch.ConvertAll(e => FetchOneAsync(e.symbol, e.svgUri, ct));
-                var results = await Task.WhenAll(tasks);
+                var results = await Task.WhenAll(tasks).ConfigureAwait(false);
                 foreach (var added in results) if (added) anyNew = true;
             }
 
             if (anyNew || _images.Count > 0)
-                SymbolsUpdated?.Invoke(this, EventArgs.Empty);
+                NotifyOnUIThread();
         }
         catch (OperationCanceledException) { }
         catch { /* network not available — Phase 1 symbols are still usable */ }
@@ -152,8 +157,8 @@ public sealed class SymbolService
         {
             try
             {
-                var bytes = await _http.GetByteArrayAsync(svgUri, ct);
-                await File.WriteAllBytesAsync(filePath, bytes, ct);
+                var bytes = await _http.GetByteArrayAsync(svgUri, ct).ConfigureAwait(false);
+                await File.WriteAllBytesAsync(filePath, bytes, ct).ConfigureAwait(false);
             }
             catch { return false; }
         }
@@ -174,4 +179,7 @@ public sealed class SymbolService
         }
         catch { return false; }
     }
+
+    private void NotifyOnUIThread() =>
+        Dispatcher.UIThread.Post(() => SymbolsUpdated?.Invoke(this, EventArgs.Empty));
 }

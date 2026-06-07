@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Library.Services;
 using System;
 
@@ -42,6 +43,8 @@ public class SetIconControl : UserControl
     {
         base.OnAttachedToVisualTree(e);
         SetIconService.Instance.SetsUpdated += OnSetsUpdated;
+        if (Application.Current is { } app)
+            app.ActualThemeVariantChanged += OnThemeVariantChanged;
         Refresh();
     }
 
@@ -49,6 +52,8 @@ public class SetIconControl : UserControl
     {
         base.OnDetachedFromVisualTree(e);
         SetIconService.Instance.SetsUpdated -= OnSetsUpdated;
+        if (Application.Current is { } app)
+            app.ActualThemeVariantChanged -= OnThemeVariantChanged;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -59,6 +64,10 @@ public class SetIconControl : UserControl
     }
 
     private void OnSetsUpdated(object? sender, EventArgs e) => Refresh();
+    private void OnThemeVariantChanged(object? sender, EventArgs e) => Refresh();
+
+    private bool IsDarkTheme =>
+        Application.Current?.ActualThemeVariant == ThemeVariant.Dark;
 
     private void Refresh()
     {
@@ -70,7 +79,8 @@ public class SetIconControl : UserControl
             return;
         }
 
-        var icon = SetIconService.Instance.TryGetIcon(code);
+        var icon = SetIconService.Instance.TryGetIcon(code, IsDarkTheme)
+                ?? SetIconService.Instance.TryGetIcon(code, false);
         _image.Source = icon;
         IsVisible = icon != null;
     }

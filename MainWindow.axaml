@@ -24,6 +24,9 @@
             <NativeMenuItem Header="Fill Missing Metadata"
                             Command="{Binding BackfillMetadataCommand}" />
             <NativeMenuItemSeparator />
+            <NativeMenuItem Header="View Image Cache…"
+                            Command="{Binding ViewImageCacheCommand}" />
+            <NativeMenuItemSeparator />
             <NativeMenuItem Header="Quit MTG Library"
                             Command="{Binding QuitCommand}"
                             Gesture="Cmd+Q" />
@@ -51,6 +54,9 @@
                   Command="{Binding RefreshPricesCommand}" />
         <MenuItem Header="Fill Missing Metadata"
                   Command="{Binding BackfillMetadataCommand}" />
+        <Separator />
+        <MenuItem Header="View Image Cache…"
+                  Command="{Binding ViewImageCacheCommand}" />
         <Separator />
         <MenuItem Header="_Settings" Click="OnSettingsMenuClick" />
         <Separator />

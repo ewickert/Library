@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Library.Services;
 using MtgJson;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using System.Windows.Input;
 
@@ -96,8 +97,11 @@ public partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    private readonly ScryfallService _scryfall;
+
     public MainWindowViewModel(DatabaseService db, ScryfallService scryfall, MtgJsonService mtgJson)
     {
+        _scryfall = scryfall;
         Collection = new CollectionViewModel(db, scryfall, mtgJson);
         Decks = new DecksViewModel(db, scryfall);
         Binders = new BindersViewModel(db, scryfall);
@@ -146,6 +150,15 @@ public partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private async Task ImportCsv() =>
         await (RequestImportCsv?.Invoke() ?? Task.CompletedTask);
+
+    [RelayCommand]
+    private void ViewImageCache()
+    {
+        var dir = _scryfall.ImageCacheDirectory;
+        if (!System.IO.Directory.Exists(dir))
+            System.IO.Directory.CreateDirectory(dir);
+        Process.Start(new ProcessStartInfo(dir) { UseShellExecute = true });
+    }
 
     /// <summary>Passthrough to CollectionViewModel so the menu can bind to it directly.</summary>
     public ICommand BackfillMetadataCommand => Collection.BackfillMetadataCommand;

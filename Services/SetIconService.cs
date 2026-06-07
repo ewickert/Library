@@ -18,10 +18,16 @@ public sealed class SetIconService
 
     private readonly HttpClient _http = new()
     {
-        DefaultRequestHeaders = { { "User-Agent", "MTGLibrary/1.0" } }
+        DefaultRequestHeaders =
+        {
+            { "User-Agent", "MTGLibrary/1.0" },
+            { "Accept", "application/json" },
+        }
     };
 
     private readonly ConcurrentDictionary<string, IImage> _icons =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IImage> _iconsDark =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _names =
         new(StringComparer.OrdinalIgnoreCase);
@@ -44,12 +50,13 @@ public sealed class SetIconService
     public void BeginLoad(CancellationToken ct = default)
     {
         if (_loadTask is { IsCompleted: false }) return;
-        _loadTask = LoadAllAsync(ct);
+        _loadTask = Task.Run(() => LoadAllAsync(ct), ct);
     }
 
-    public IImage? TryGetIcon(string setCode)
+    public IImage? TryGetIcon(string setCode, bool dark = false)
     {
-        _icons.TryGetValue(setCode, out var img);
+        var dict = dark ? _iconsDark : _icons;
+        dict.TryGetValue(setCode, out var img);
         return img;
     }
 
@@ -68,7 +75,7 @@ public sealed class SetIconService
         {
             try
             {
-                var json = await File.ReadAllTextAsync(NamesPath, ct);
+                var json = await File.ReadAllTextAsync(NamesPath, ct).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
                 foreach (var prop in doc.RootElement.EnumerateObject())
                 {
@@ -83,7 +90,7 @@ public sealed class SetIconService
         {
             try
             {
-                var json = await File.ReadAllTextAsync(ManifestPath, ct);
+                var json = await File.ReadAllTextAsync(ManifestPath, ct).ConfigureAwait(false);
                 using var doc = JsonDocument.Parse(json);
                 foreach (var prop in doc.RootElement.EnumerateObject())
                 {
@@ -96,14 +103,12 @@ public sealed class SetIconService
 
             if (!_icons.IsEmpty || !_names.IsEmpty)
                 NotifyOnUIThread();
-
-            // Even if Phase 1 had nothing, notify after names are populated in Phase 2
         }
 
         // ── Phase 2: fetch fresh list from Scryfall, download missing SVGs ─────
         try
         {
-            var json = await _http.GetStringAsync("https://api.scryfall.com/sets", ct);
+            var json = await _http.GetStringAsync("https://api.scryfall.com/sets", ct).ConfigureAwait(false);
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("data", out var data)) return;
 
@@ -132,8 +137,8 @@ public sealed class SetIconService
 
             try
             {
-                await File.WriteAllTextAsync(ManifestPath, JsonSerializer.Serialize(manifest), ct);
-                await File.WriteAllTextAsync(NamesPath,    JsonSerializer.Serialize(namesDict), ct);
+                await File.WriteAllTextAsync(ManifestPath, JsonSerializer.Serialize(manifest), ct).ConfigureAwait(false);
+                await File.WriteAllTextAsync(NamesPath,    JsonSerializer.Serialize(namesDict), ct).ConfigureAwait(false);
             }
             catch { }
 
@@ -145,7 +150,7 @@ public sealed class SetIconService
                 ct.ThrowIfCancellationRequested();
                 var batch   = entries.GetRange(i, Math.Min(batchSize, entries.Count - i));
                 var tasks   = batch.ConvertAll(e => FetchOneAsync(e.code, e.iconUri, ct));
-                var results = await Task.WhenAll(tasks);
+                var results = await Task.WhenAll(tasks).ConfigureAwait(false);
                 foreach (var added in results) if (added) anyNew = true;
             }
 
@@ -164,8 +169,8 @@ public sealed class SetIconService
         {
             try
             {
-                var bytes = await _http.GetByteArrayAsync(iconUri, ct);
-                await File.WriteAllBytesAsync(filePath, bytes, ct);
+                var bytes = await _http.GetByteArrayAsync(iconUri, ct).ConfigureAwait(false);
+                await File.WriteAllBytesAsync(filePath, bytes, ct).ConfigureAwait(false);
             }
             catch { return false; }
         }
@@ -178,13 +183,32 @@ public sealed class SetIconService
         if (!File.Exists(filePath)) return false;
         try
         {
-            using var stream = File.OpenRead(filePath);
+            var bytes = File.ReadAllBytes(filePath);
+
+            using var stream = new MemoryStream(bytes);
             var source = SvgSource.LoadFromStream(stream, null);
             if (source?.Picture == null) return false;
             _icons[code] = new SvgImage { Source = source };
+
+            var darkBytes = RecolorForDark(bytes);
+            using var darkStream = new MemoryStream(darkBytes);
+            var darkSource = SvgSource.LoadFromStream(darkStream, null);
+            if (darkSource?.Picture != null)
+                _iconsDark[code] = new SvgImage { Source = darkSource };
+
             return true;
         }
         catch { return false; }
+    }
+
+    // Replaces black fill values with a light grey suitable for dark backgrounds.
+    private static byte[] RecolorForDark(byte[] svgBytes)
+    {
+        var text = System.Text.Encoding.UTF8.GetString(svgBytes);
+        text = text.Replace("fill=\"#000000\"", "fill=\"#CCCCCC\"");
+        text = text.Replace("fill=\"#000\"",    "fill=\"#CCCCCC\"");
+        text = text.Replace("fill=\"black\"",   "fill=\"#CCCCCC\"");
+        return System.Text.Encoding.UTF8.GetBytes(text);
     }
 
     private void NotifyOnUIThread() =>

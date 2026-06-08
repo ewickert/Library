@@ -144,6 +144,14 @@ public class DatabaseService
         RunMigration(conn, "ALTER TABLE Cards ADD COLUMN CurrentMarketPrice REAL");
         RunMigration(conn, "ALTER TABLE Cards ADD COLUMN CurrentMarketPriceFetchedAt TEXT");
         RunMigration(conn, "ALTER TABLE GamePlayers ADD COLUMN DeckVersionId INTEGER REFERENCES DeckVersions(Id) ON DELETE SET NULL");
+        RunMigration(conn, """
+            CREATE TABLE IF NOT EXISTS DeckShoppingItems (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                DeckId INTEGER NOT NULL REFERENCES Decks(Id) ON DELETE CASCADE,
+                ShoppingListId INTEGER NOT NULL REFERENCES ShoppingList(Id) ON DELETE CASCADE,
+                UNIQUE(DeckId, ShoppingListId)
+            )
+            """);
     }
 
     private static void RunMigration(SqliteConnection conn, string sql)
@@ -342,18 +350,24 @@ public class DatabaseService
         return cards;
     }
 
-    /// <summary>Returns all cards with a Scryfall ID that need their current price refreshed (non-placeholder).</summary>
+    /// <summary>
+    /// Returns cards whose current price is missing or was fetched more than 24 hours ago.
+    /// Excludes placeholder cards (they get their prices via the shopping list flow).
+    /// </summary>
     public List<Card> GetCardsForPriceRefresh()
     {
         using var conn = CreateConnection();
         conn.Open();
         using var cmd = conn.CreateCommand();
+        var cutoff = DateTime.UtcNow.AddHours(-24).ToString("o");
         cmd.CommandText = """
             SELECT * FROM Cards
             WHERE (IsPlaceholder = 0 OR IsPlaceholder IS NULL)
               AND ScryfallId IS NOT NULL
+              AND (CurrentMarketPriceFetchedAt IS NULL OR CurrentMarketPriceFetchedAt < $cutoff)
             ORDER BY Name
             """;
+        cmd.Parameters.AddWithValue("$cutoff", cutoff);
         using var reader = cmd.ExecuteReader();
         var cards = new List<Card>();
         while (reader.Read()) cards.Add(ReadCard(reader));
@@ -401,7 +415,7 @@ public class DatabaseService
         using var cmd = conn.CreateCommand();
         cmd.CommandText = """
             SELECT * FROM Cards
-            WHERE ColorIdentity IS NULL OR ManaCost IS NULL OR TypeLine IS NULL
+            WHERE ColorIdentity IS NULL OR ManaCost IS NULL OR TypeLine IS NULL OR TypeLine = ''
             ORDER BY Name
             """;
         using var reader = cmd.ExecuteReader();
@@ -479,7 +493,14 @@ public class DatabaseService
         using var conn = CreateConnection();
         conn.Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM ShoppingList ORDER BY Name";
+        cmd.CommandText = """
+            SELECT sl.*,
+                   c.CurrentMarketPrice       AS CardCurrentMarketPrice,
+                   c.CurrentMarketPriceFetchedAt AS CardCurrentMarketPriceFetchedAt
+            FROM ShoppingList sl
+            LEFT JOIN Cards c ON c.Id = sl.PlaceholderCardId
+            ORDER BY sl.Name
+            """;
         using var reader = cmd.ExecuteReader();
         var list = new List<ShoppingItem>();
         while (reader.Read()) list.Add(ReadShoppingItem(reader));
@@ -636,21 +657,87 @@ public class DatabaseService
         tx.Commit();
     }
 
-    private static ShoppingItem ReadShoppingItem(SqliteDataReader r) => new()
+    /// <summary>Tags an existing shopping list item as a wanted upgrade for a specific deck.</summary>
+    public void TagShoppingItemToDeck(int shoppingListId, int deckId)
     {
-        Id              = r.GetInt32(r.GetOrdinal("Id")),
-        ScryfallId      = r.GetString(r.GetOrdinal("ScryfallId")),
-        Name            = r.GetString(r.GetOrdinal("Name")),
-        SetCode         = r.GetString(r.GetOrdinal("SetCode")),
-        SetName         = r.GetString(r.GetOrdinal("SetName")),
-        CollectorNumber = r.GetString(r.GetOrdinal("CollectorNumber")),
-        ManaCost        = r.GetString(r.GetOrdinal("ManaCost")),
-        TypeLine        = r.GetString(r.GetOrdinal("TypeLine")),
-        ColorIdentity   = r.GetString(r.GetOrdinal("ColorIdentity")),
-        Rarity          = r.GetString(r.GetOrdinal("Rarity")),
-        Added           = DateTime.Parse(r.GetString(r.GetOrdinal("Added"))),
-        PlaceholderCardId = r.IsDBNull(r.GetOrdinal("PlaceholderCardId")) ? null : r.GetInt32(r.GetOrdinal("PlaceholderCardId"))
-    };
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "INSERT OR IGNORE INTO DeckShoppingItems (DeckId, ShoppingListId) VALUES ($d,$s)";
+        cmd.Parameters.AddWithValue("$d", deckId);
+        cmd.Parameters.AddWithValue("$s", shoppingListId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Removes the deck-specific tag from a shopping list item without deleting the global item.</summary>
+    public void UntagShoppingItemFromDeck(int shoppingListId, int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM DeckShoppingItems WHERE DeckId=$d AND ShoppingListId=$s";
+        cmd.Parameters.AddWithValue("$d", deckId);
+        cmd.Parameters.AddWithValue("$s", shoppingListId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Returns all shopping list items tagged as upgrades for a specific deck.</summary>
+    public List<ShoppingItem> GetShoppingListForDeck(int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT sl.*,
+                   c.CurrentMarketPrice          AS CardCurrentMarketPrice,
+                   c.CurrentMarketPriceFetchedAt AS CardCurrentMarketPriceFetchedAt
+            FROM ShoppingList sl
+            INNER JOIN DeckShoppingItems dsi ON dsi.ShoppingListId = sl.Id
+            LEFT  JOIN Cards c ON c.Id = sl.PlaceholderCardId
+            WHERE dsi.DeckId = $d
+            ORDER BY sl.Name
+            """;
+        cmd.Parameters.AddWithValue("$d", deckId);
+        using var r = cmd.ExecuteReader();
+        var items = new List<ShoppingItem>();
+        while (r.Read()) items.Add(ReadShoppingItem(r));
+        return items;
+    }
+
+    /// <summary>Returns true if the shopping list item is already tagged to this deck.</summary>
+    public bool IsShoppingItemTaggedToDeck(int shoppingListId, int deckId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM DeckShoppingItems WHERE DeckId=$d AND ShoppingListId=$s";
+        cmd.Parameters.AddWithValue("$d", deckId);
+        cmd.Parameters.AddWithValue("$s", shoppingListId);
+        return Convert.ToInt64(cmd.ExecuteScalar()) > 0;
+    }
+
+    private static ShoppingItem ReadShoppingItem(SqliteDataReader r)
+    {
+        var priceOrd   = r.GetOrdinal("CardCurrentMarketPrice");
+        var priceAtOrd = r.GetOrdinal("CardCurrentMarketPriceFetchedAt");
+        return new ShoppingItem
+        {
+            Id              = r.GetInt32(r.GetOrdinal("Id")),
+            ScryfallId      = r.GetString(r.GetOrdinal("ScryfallId")),
+            Name            = r.GetString(r.GetOrdinal("Name")),
+            SetCode         = r.GetString(r.GetOrdinal("SetCode")),
+            SetName         = r.GetString(r.GetOrdinal("SetName")),
+            CollectorNumber = r.GetString(r.GetOrdinal("CollectorNumber")),
+            ManaCost        = r.GetString(r.GetOrdinal("ManaCost")),
+            TypeLine        = r.GetString(r.GetOrdinal("TypeLine")),
+            ColorIdentity   = r.GetString(r.GetOrdinal("ColorIdentity")),
+            Rarity          = r.GetString(r.GetOrdinal("Rarity")),
+            Added           = DateTime.Parse(r.GetString(r.GetOrdinal("Added"))),
+            PlaceholderCardId            = r.IsDBNull(r.GetOrdinal("PlaceholderCardId")) ? null : r.GetInt32(r.GetOrdinal("PlaceholderCardId")),
+            CurrentMarketPrice           = r.IsDBNull(priceOrd)   ? null : r.GetDecimal(priceOrd),
+            CurrentMarketPriceFetchedAt  = r.IsDBNull(priceAtOrd) ? null : DateTime.Parse(r.GetString(priceAtOrd))
+        };
+    }
 
     // --- Decks ---
 
@@ -680,6 +767,25 @@ public class DatabaseService
             decks.Add(deck);
         }
         return decks;
+    }
+
+    /// <summary>Returns the names of all decks that have tagged a shopping list item as a wishlist upgrade.</summary>
+    public List<string> GetWishlistDeckNamesForShoppingItem(int shoppingListId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT d.Name FROM Decks d
+            INNER JOIN DeckShoppingItems dsi ON dsi.DeckId = d.Id
+            WHERE dsi.ShoppingListId = $sid
+            ORDER BY d.Name
+            """;
+        cmd.Parameters.AddWithValue("$sid", shoppingListId);
+        using var r = cmd.ExecuteReader();
+        var names = new List<string>();
+        while (r.Read()) names.Add(r.GetString(0));
+        return names;
     }
 
     /// <summary>Returns the names of all decks that contain a given card (by Cards.Id).</summary>
@@ -806,6 +912,49 @@ public class DatabaseService
         conn.Open();
         using var cmd = conn.CreateCommand();
         cmd.CommandText = "DELETE FROM DeckCards WHERE Id = $id";
+        cmd.Parameters.AddWithValue("$id", deckCardId);
+        cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Decrements the quantity of a deck card by 1, deleting the row when it reaches 0.</summary>
+    public void DecrementDeckCard(int deckCardId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            using var selectCmd = conn.CreateCommand();
+            selectCmd.Transaction = tx;
+            selectCmd.CommandText = "SELECT Quantity FROM DeckCards WHERE Id = $id";
+            selectCmd.Parameters.AddWithValue("$id", deckCardId);
+            var qty = selectCmd.ExecuteScalar();
+            if (qty == null || qty is DBNull) { tx.Rollback(); return; }
+
+            using var mutCmd = conn.CreateCommand();
+            mutCmd.Transaction = tx;
+            if (Convert.ToInt32(qty) > 1)
+            {
+                mutCmd.CommandText = "UPDATE DeckCards SET Quantity = Quantity - 1 WHERE Id = $id";
+            }
+            else
+            {
+                mutCmd.CommandText = "DELETE FROM DeckCards WHERE Id = $id";
+            }
+            mutCmd.Parameters.AddWithValue("$id", deckCardId);
+            mutCmd.ExecuteNonQuery();
+            tx.Commit();
+        }
+        catch { tx.Rollback(); throw; }
+    }
+
+    /// <summary>Increments the quantity of an existing deck card row by 1.</summary>
+    public void IncrementDeckCardQuantity(int deckCardId)
+    {
+        using var conn = CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "UPDATE DeckCards SET Quantity = Quantity + 1 WHERE Id = $id";
         cmd.Parameters.AddWithValue("$id", deckCardId);
         cmd.ExecuteNonQuery();
     }

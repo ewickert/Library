@@ -63,6 +63,22 @@ public partial class MainWindow : Window
 #endif
         };
 
+        // ── Copy deck to clipboard ─────────────────────────────────────────────
+        vm.Decks.RequestCopyToClipboard = async content =>
+        {
+            if (Clipboard != null)
+                await Clipboard.SetTextAsync(content);
+        };
+
+        // ── Alternate printings gallery ────────────────────────────────────────
+        vm.Decks.RequestOpenAlternatePrintings = async (cardName, currentScryfallId, contextDeck) =>
+        {
+            var win = new AlternatePrintingsWindow(cardName, currentScryfallId,
+                ScryfallService, DatabaseService, contextDeck);
+            win.Closed += (_, _) => vm.Decks.ReloadDeckWishlist();
+            await win.ShowDialog(this);
+        };
+
         // ── Deck import ────────────────────────────────────────────────────────
         vm.Decks.RequestImportDeck = async () =>
         {

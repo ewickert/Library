@@ -244,7 +244,7 @@ public sealed class SetIconService
                 foreach (var added in results) if (added) anyNew = true;
             }
 
-            if (anyNew || !_icons.IsEmpty || !_names.IsEmpty)
+            if (anyNew)
                 NotifyOnUIThread();
         }
         catch (OperationCanceledException) { }
@@ -255,19 +255,22 @@ public sealed class SetIconService
     {
         var filePath = Path.Combine(CacheDir, $"{code}.svg");
 
-        if (!File.Exists(filePath))
+        if (File.Exists(filePath))
         {
-            try
-            {
-                var bytes = await _http.GetByteArrayAsync(iconUri, ct).ConfigureAwait(false);
-                await File.WriteAllBytesAsync(filePath, bytes, ct).ConfigureAwait(false);
-            }
-            catch { return false; }
+            // Already on disk — just register the path for lazy loading; don't parse now.
+            _svgPaths[code] = filePath;
+            return false;
         }
 
-        // Make the file discoverable to lazy loads before parsing it
-        _svgPaths[code] = filePath;
+        try
+        {
+            var bytes = await _http.GetByteArrayAsync(iconUri, ct).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(filePath, bytes, ct).ConfigureAwait(false);
+        }
+        catch { return false; }
 
+        // New file: register and eagerly parse so it's ready immediately.
+        _svgPaths[code] = filePath;
         return TryLoadFile(code, filePath);
     }
 

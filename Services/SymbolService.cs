@@ -30,7 +30,12 @@ public sealed class SymbolService
         }
     };
 
-    private readonly ConcurrentDictionary<string, IImage> _images =
+    // SvgSource is a plain class — safe to create on background threads.
+    private readonly ConcurrentDictionary<string, SvgSource> _sources =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    // SvgImage extends AvaloniaObject — only created/accessed on the UI thread.
+    private readonly Dictionary<string, IImage> _images =
         new(StringComparer.OrdinalIgnoreCase);
 
     private Task? _loadTask;
@@ -47,7 +52,6 @@ public sealed class SymbolService
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "MagicLibrary", "symbols");
 
-    // Maps normalized key ("W", "W/U", "T" …) → svg filename ("W.svg", "WU.svg", "T.svg" …)
     private static string ManifestPath => Path.Combine(CacheDir, "manifest.json");
 
     // "{W}" → "W",  "{W/U}" → "W/U"
@@ -60,21 +64,31 @@ public sealed class SymbolService
         _loadTask = Task.Run(() => LoadAllAsync(ct), ct);
     }
 
-    /// <summary>Returns the cached IImage for a symbol token like "{W}" or "{T}", or null if not yet loaded.</summary>
+    /// <summary>
+    /// Returns the cached IImage for a symbol token like "{W}" or "{T}", or null if not yet loaded.
+    /// Must be called on the UI thread.
+    /// </summary>
     public IImage? TryGet(string symbolToken)
     {
         var key = Normalize(symbolToken);
-        _images.TryGetValue(key, out var img);
-        return img;
+
+        if (_images.TryGetValue(key, out var img)) return img;
+
+        if (_sources.TryGetValue(key, out var source))
+        {
+            var image = new SvgImage { Source = source };
+            _images[key] = image;
+            return image;
+        }
+
+        return null;
     }
 
     private async Task LoadAllAsync(CancellationToken ct)
     {
         Directory.CreateDirectory(CacheDir);
 
-        // ── Phase 1: load from disk cache immediately ──────────────────────────
-        // Uses manifest.json (written on first successful network fetch) so keys
-        // are correct even for hybrid symbols like {W/U} → WU.svg.
+        // Phase 1: load SvgSources from disk cache (no UI-thread objects created here)
         if (File.Exists(ManifestPath))
         {
             try
@@ -83,19 +97,18 @@ public sealed class SymbolService
                 using var manifestDoc = JsonDocument.Parse(manifestJson);
                 foreach (var prop in manifestDoc.RootElement.EnumerateObject())
                 {
-                    var key = prop.Name;
                     var fileName = prop.Value.GetString();
-                    if (string.IsNullOrEmpty(fileName)) continue;
-                    TryLoadFile(key, Path.Combine(CacheDir, fileName));
+                    if (!string.IsNullOrEmpty(fileName))
+                        TryLoadFile(prop.Name, Path.Combine(CacheDir, fileName));
                 }
             }
             catch { }
 
-            if (_images.Count > 0)
+            if (_sources.Count > 0)
                 NotifyOnUIThread();
         }
 
-        // ── Phase 2: fetch fresh symbol list, download any missing SVGs ────────
+        // Phase 2: fetch fresh symbol list, download any missing SVGs
         try
         {
             var json = await _http.GetStringAsync("https://api.scryfall.com/symbology", ct).ConfigureAwait(false);
@@ -119,15 +132,12 @@ public sealed class SymbolService
                 entries.Add((symbol, uri));
             }
 
-            // Persist manifest so Phase 1 works on next launch
             try
             {
-                var updated = JsonSerializer.Serialize(manifest);
-                await File.WriteAllTextAsync(ManifestPath, updated, ct).ConfigureAwait(false);
+                await File.WriteAllTextAsync(ManifestPath, JsonSerializer.Serialize(manifest), ct).ConfigureAwait(false);
             }
             catch { }
 
-            // Download missing SVGs in small batches (polite to Scryfall)
             const int batchSize = 4;
             var anyNew = false;
             for (var i = 0; i < entries.Count; i += batchSize)
@@ -139,29 +149,26 @@ public sealed class SymbolService
                 foreach (var added in results) if (added) anyNew = true;
             }
 
-            if (anyNew || _images.Count > 0)
-                NotifyOnUIThread();
+            if (anyNew) NotifyOnUIThread();
         }
         catch (OperationCanceledException) { }
         catch { /* network not available — Phase 1 symbols are still usable */ }
     }
 
-    // Returns true if a new symbol was added to _images.
     private async Task<bool> FetchOneAsync(string symbol, string svgUri, CancellationToken ct)
     {
         var key = Normalize(symbol);
         var fileName = Path.GetFileName(new Uri(svgUri).LocalPath);
         var filePath = Path.Combine(CacheDir, fileName);
 
-        if (!File.Exists(filePath))
+        if (File.Exists(filePath)) return false; // already cached; Phase 1 loaded it
+
+        try
         {
-            try
-            {
-                var bytes = await _http.GetByteArrayAsync(svgUri, ct).ConfigureAwait(false);
-                await File.WriteAllBytesAsync(filePath, bytes, ct).ConfigureAwait(false);
-            }
-            catch { return false; }
+            var bytes = await _http.GetByteArrayAsync(svgUri, ct).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(filePath, bytes, ct).ConfigureAwait(false);
         }
+        catch { return false; }
 
         return TryLoadFile(key, filePath);
     }
@@ -174,7 +181,7 @@ public sealed class SymbolService
             using var stream = File.OpenRead(filePath);
             var source = SvgSource.LoadFromStream(stream, null);
             if (source?.Picture == null) return false;
-            _images[key] = new SvgImage { Source = source };
+            _sources[key] = source;
             return true;
         }
         catch { return false; }

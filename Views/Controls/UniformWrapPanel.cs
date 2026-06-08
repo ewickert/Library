@@ -5,9 +5,10 @@ using Avalonia.Controls;
 namespace Library.Views.Controls;
 
 /// <summary>
-/// A panel that arranges children in uniform-width columns that stretch to fill
-/// available width. Columns wrap onto new rows when the pane is too narrow to
-/// fit another column at MinItemWidth.
+/// Arranges children in uniform-width columns using a masonry (greedy-fill) strategy:
+/// each new child is placed into the column with the smallest current height.
+/// This eliminates the large blank gaps that appear when row-aligned columns have
+/// very different heights.
 /// </summary>
 public sealed class UniformWrapPanel : Panel
 {
@@ -31,7 +32,6 @@ public sealed class UniformWrapPanel : Panel
 
     static UniformWrapPanel()
     {
-        // Re-layout when spacing/min-width properties change
         AffectsMeasure<UniformWrapPanel>(MinItemWidthProperty, ItemSpacingProperty);
     }
 
@@ -39,8 +39,6 @@ public sealed class UniformWrapPanel : Panel
     {
         double spacing = ItemSpacing;
         double minWidth = MinItemWidth;
-        // Solve: cols * minWidth + (cols - 1) * spacing <= availableWidth
-        //   => cols <= (availableWidth + spacing) / (minWidth + spacing)
         int cols = Math.Max(1, (int)((availableWidth + spacing) / (minWidth + spacing)));
         return Children.Count > 0 ? Math.Min(cols, Children.Count) : cols;
     }
@@ -58,26 +56,19 @@ public sealed class UniformWrapPanel : Panel
         double availableWidth = double.IsInfinity(availableSize.Width) ? 800 : availableSize.Width;
         int cols = GetColumnCount(availableWidth);
         double itemWidth = GetItemWidth(availableWidth, cols);
-        var itemSize = new Size(itemWidth, availableSize.Height);
 
-        int rows = (Children.Count + cols - 1) / cols;
-        double[] rowHeights = new double[rows];
+        foreach (var child in Children)
+            child.Measure(new Size(itemWidth, double.PositiveInfinity));
 
-        for (int i = 0; i < Children.Count; i++)
+        var colHeights = new double[cols];
+        foreach (var child in Children)
         {
-            Children[i].Measure(itemSize);
-            int r = i / cols;
-            rowHeights[r] = Math.Max(rowHeights[r], Children[i].DesiredSize.Height);
+            int col = ShortestColumn(colHeights);
+            colHeights[col] = (colHeights[col] > 0 ? colHeights[col] + ItemSpacing : 0)
+                              + child.DesiredSize.Height;
         }
 
-        double totalHeight = 0;
-        double spacing = ItemSpacing;
-        for (int r = 0; r < rows; r++)
-        {
-            totalHeight += rowHeights[r];
-            if (r < rows - 1) totalHeight += spacing;
-        }
-
+        double totalHeight = colHeights.Length > 0 ? Max(colHeights) : 0;
         return new Size(availableWidth, totalHeight);
     }
 
@@ -90,27 +81,32 @@ public sealed class UniformWrapPanel : Panel
         double itemWidth = GetItemWidth(availableWidth, cols);
         double spacing = ItemSpacing;
 
-        int rows = (Children.Count + cols - 1) / cols;
-        double[] rowHeights = new double[rows];
-        for (int i = 0; i < Children.Count; i++)
+        var colHeights = new double[cols];
+        foreach (var child in Children)
         {
-            int r = i / cols;
-            rowHeights[r] = Math.Max(rowHeights[r], Children[i].DesiredSize.Height);
-        }
-
-        double y = 0;
-        for (int r = 0; r < rows; r++)
-        {
-            for (int c = 0; c < cols; c++)
-            {
-                int idx = r * cols + c;
-                if (idx >= Children.Count) break;
-                double x = c * (itemWidth + spacing);
-                Children[idx].Arrange(new Rect(x, y, itemWidth, rowHeights[r]));
-            }
-            y += rowHeights[r] + spacing;
+            int col = ShortestColumn(colHeights);
+            double y = colHeights[col] > 0 ? colHeights[col] + spacing : 0;
+            double x = col * (itemWidth + spacing);
+            child.Arrange(new Rect(x, y, itemWidth, child.DesiredSize.Height));
+            colHeights[col] = y + child.DesiredSize.Height;
         }
 
         return finalSize;
+    }
+
+    private static int ShortestColumn(double[] heights)
+    {
+        int min = 0;
+        for (int i = 1; i < heights.Length; i++)
+            if (heights[i] < heights[min]) min = i;
+        return min;
+    }
+
+    private static double Max(double[] values)
+    {
+        double max = values[0];
+        for (int i = 1; i < values.Length; i++)
+            if (values[i] > max) max = values[i];
+        return max;
     }
 }

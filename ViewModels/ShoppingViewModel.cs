@@ -140,6 +140,11 @@ public partial class ShoppingItemViewModel : ObservableObject
 
     [ObservableProperty] private Avalonia.Media.Imaging.Bitmap? _image;
     [ObservableProperty] private bool _isLoadingImage = true;
+    [ObservableProperty] private decimal? _currentMarketPrice;
+
+    public string CurrentPriceLabel => _currentMarketPrice.HasValue
+        ? $"${_currentMarketPrice.Value:F2}"
+        : string.Empty;
 
     public string Name            => Item.Name;
     public string SetCode         => Item.SetCode;
@@ -165,11 +170,30 @@ public partial class ShoppingItemViewModel : ObservableObject
         _scryfall     = scryfall;
         _decks        = decks;
         _reloadParent = reloadParent;
-        DeckNames     = item.PlaceholderCardId.HasValue
+        // Combine decks that contain the placeholder card with decks that have explicitly wishlisted this item
+        var inDeck     = item.PlaceholderCardId.HasValue
             ? db.GetDeckNamesForCard(item.PlaceholderCardId.Value)
             : new List<string>();
+        var wishlisted = db.GetWishlistDeckNamesForShoppingItem(item.Id);
+        DeckNames = inDeck.Union(wishlisted, StringComparer.OrdinalIgnoreCase)
+                          .OrderBy(n => n).ToList();
+
+        _currentMarketPrice = item.CurrentMarketPrice;
+
         _ = LoadImageAsync();
+
+        // Background price fetch if missing or older than 24 hours
+        if (!string.IsNullOrEmpty(item.ScryfallId) && item.PlaceholderCardId.HasValue)
+        {
+            bool stale = item.CurrentMarketPriceFetchedAt == null ||
+                         item.CurrentMarketPriceFetchedAt < DateTime.UtcNow.AddHours(-24);
+            if (stale)
+                _ = FetchPriceAsync(item.ScryfallId, item.PlaceholderCardId.Value, item.CurrentMarketPrice == null);
+        }
     }
+
+    partial void OnCurrentMarketPriceChanged(decimal? value) =>
+        OnPropertyChanged(nameof(CurrentPriceLabel));
 
     private async Task LoadImageAsync()
     {
@@ -180,6 +204,20 @@ public partial class ShoppingItemViewModel : ObservableObject
                 Image = await _scryfall.GetCardImageAsync(Item.ScryfallId, CancellationToken.None);
         }
         finally { IsLoadingImage = false; }
+    }
+
+    private async Task FetchPriceAsync(string scryfallId, int placeholderCardId, bool setBaseline)
+    {
+        try
+        {
+            var price = await _scryfall.GetCardMarketPriceAsync(scryfallId, foil: false);
+            if (price.HasValue)
+            {
+                _db.UpdateCardPrices(placeholderCardId, price.Value, setBaseline);
+                CurrentMarketPrice = price.Value;
+            }
+        }
+        catch { /* price fetch is best-effort */ }
     }
 
     [RelayCommand]

@@ -13,6 +13,10 @@ public partial class DecksViewModel : ObservableObject
     private readonly DatabaseService _db;
     private readonly ScryfallService _scryfall;
     private CancellationTokenSource? _slotsCts;
+    private CancellationTokenSource? _typeLineCts;
+    // Cards we've already attempted a TypeLine fetch for this session; prevents re-querying
+    // cards that are genuinely unrecognized after a successful Scryfall response.
+    private readonly HashSet<int> _typeLineFetchAttempted = new();
 
     // ── Deck list & selected deck ─────────────────────────────────────────────
     [ObservableProperty] private ObservableCollection<Deck> _decks = new();
@@ -72,13 +76,27 @@ public partial class DecksViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowCommanderPanel));
     [ObservableProperty] private bool _isLoadingCommanderColorIdentity;
 
+    public static string[] Formats => [
+        "Commander", "Standard", "Modern", "Pioneer", "Legacy",
+        "Vintage", "Pauper", "Draft", "Sealed", "Casual"
+    ];
+
+    public static string? NormalizeFormat(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        return raw.Trim() switch {
+            var s when s.Equals("Commander Deck", StringComparison.OrdinalIgnoreCase) => "Commander",
+            var s when s.Equals("EDH", StringComparison.OrdinalIgnoreCase) => "Commander",
+            var s when s.Equals("EDH/Commander", StringComparison.OrdinalIgnoreCase) => "Commander",
+            var s => s,
+        };
+    }
+
     public bool IsCommanderFormat =>
-        SelectedDeck?.Format?.Equals("Commander", StringComparison.OrdinalIgnoreCase) == true ||
-        SelectedDeck?.Format?.Equals("EDH", StringComparison.OrdinalIgnoreCase) == true;
+        SelectedDeck?.Format?.Equals("Commander", StringComparison.OrdinalIgnoreCase) == true;
 
     public bool ShowCommanderPanel =>
         SelectedDeck?.Format?.Equals("Commander", StringComparison.OrdinalIgnoreCase) == true ||
-        SelectedDeck?.Format?.Equals("EDH", StringComparison.OrdinalIgnoreCase) == true ||
         CommanderDeckCard != null;
 
     // ── Deck sidebar ──────────────────────────────────────────────────────────
@@ -186,8 +204,7 @@ public partial class DecksViewModel : ObservableObject
 
     // ── Deck card count ───────────────────────────────────────────────────────
     public int DeckTotalCardCount => _allDeckCards.Sum(dc => dc.Quantity);
-    public int? DeckCardLimit => SelectedDeck?.Format?.Equals("Commander", StringComparison.OrdinalIgnoreCase) == true ||
-                                 SelectedDeck?.Format?.Equals("EDH", StringComparison.OrdinalIgnoreCase) == true ? 100 :
+    public int? DeckCardLimit => SelectedDeck?.Format?.Equals("Commander", StringComparison.OrdinalIgnoreCase) == true ? 100 :
                                  SelectedDeck?.Format?.Equals("Standard", StringComparison.OrdinalIgnoreCase) == true ||
                                  SelectedDeck?.Format?.Equals("Modern", StringComparison.OrdinalIgnoreCase) == true ||
                                  SelectedDeck?.Format?.Equals("Pioneer", StringComparison.OrdinalIgnoreCase) == true ? 60 :
@@ -207,8 +224,16 @@ public partial class DecksViewModel : ObservableObject
     public Func<string, string, Task>? RequestShareDeck { get; set; }
     /// <summary>Set by the host window. Returns text content of the chosen file, or null if cancelled.</summary>
     public Func<Task<string?>>? RequestImportDeck { get; set; }
+    /// <summary>Set by the host window. Places the given text on the system clipboard.</summary>
+    public Func<string, Task>? RequestCopyToClipboard { get; set; }
+    /// <summary>Set by the host window. Opens the alternate printings gallery for a card.</summary>
+    public Func<string, string?, Deck?, Task>? RequestOpenAlternatePrintings { get; set; }
 
     [ObservableProperty] private string _deckTransferStatus = string.Empty;
+
+    // ── Deck wishlist ─────────────────────────────────────────────────────────
+    [ObservableProperty] private ObservableCollection<WishlistItemViewModel> _deckWishlistItems = new();
+    [ObservableProperty] private bool _isWishlistOpen;
 
     [RelayCommand]
     private async Task ExportDeck()
@@ -239,6 +264,19 @@ public partial class DecksViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task CopyDeckToClipboard()
+    {
+        if (SelectedDeck == null || RequestCopyToClipboard == null) return;
+        var deck = _db.GetDeckWithCards(SelectedDeck.Id);
+        if (deck == null) return;
+
+        var text = Services.DeckTextService.Export(deck);
+        await RequestCopyToClipboard(text);
+        DeckTransferStatus = $"Copied \"{deck.Name}\" to clipboard";
+        _ = AutoClearTransferStatus(DeckTransferStatus);
+    }
+
+    [RelayCommand]
     private async Task ImportDeck()
     {
         var text = await (RequestImportDeck?.Invoke() ?? Task.FromResult<string?>(null));
@@ -249,7 +287,7 @@ public partial class DecksViewModel : ObservableObject
         var deck = new Deck
         {
             Name = result.DeckName,
-            Format = result.Format,
+            Format = NormalizeFormat(result.Format),
             Created = DateTime.UtcNow
         };
         var deckId = _db.AddDeck(deck);
@@ -282,13 +320,31 @@ public partial class DecksViewModel : ObservableObject
             DeckTransferStatus = string.Empty;
     }
 
+    private void OpenAlternatePrintings(Card? card)
+    {
+        if (card == null || RequestOpenAlternatePrintings == null) return;
+        _ = RequestOpenAlternatePrintings(card.Name, card.ScryfallId, SelectedDeck);
+    }
+
+    // ── Deck wishlist ─────────────────────────────────────────────────────────
+
+    public void ReloadDeckWishlist()
+    {
+        if (SelectedDeck == null) { DeckWishlistItems = new(); return; }
+        var deckId = SelectedDeck.Id;
+        var items = _db.GetShoppingListForDeck(deckId)
+            .Select(s => new WishlistItemViewModel(s, _db, _scryfall, this, deckId, ReloadDeckWishlist))
+            .ToList();
+        DeckWishlistItems = new ObservableCollection<WishlistItemViewModel>(items);
+    }
+
     public async Task ImportMtgJsonDeckAsync(MtgJson.Models.Deck source, CancellationToken ct = default)
     {
         var deck = new Deck
         {
             Name = source.Name,
             Description = string.Empty,
-            Format = source.Type,
+            Format = NormalizeFormat(source.Type),
             Created = DateTime.UtcNow,
         };
         var deckId = _db.AddDeck(deck);
@@ -416,7 +472,13 @@ public partial class DecksViewModel : ObservableObject
         LoadCollectionCards();
     }
 
-    public void LoadDecks() => Decks = new ObservableCollection<Deck>(_db.GetAllDecks());
+    public void LoadDecks()
+    {
+        var decks = _db.GetAllDecks();
+        foreach (var d in decks)
+            d.Format = NormalizeFormat(d.Format);
+        Decks = new ObservableCollection<Deck>(decks);
+    }
 
     // ── View toggle ───────────────────────────────────────────────────────────
     [RelayCommand]
@@ -588,6 +650,7 @@ public partial class DecksViewModel : ObservableObject
         _slotsCts?.Cancel();
         _slotsCts = new CancellationTokenSource();
         _allDeckCards.Clear();
+        _typeLineFetchAttempted.Clear();
 
         DeckCards.Clear();
         DeckCardSlots.Clear();
@@ -627,6 +690,10 @@ public partial class DecksViewModel : ObservableObject
         CommanderDeckCard = full.Cards.FirstOrDefault(dc => dc.IsCommander);
         CommanderColorIdentity = full.CommanderColorIdentity ?? string.Empty;
 
+        // Auto-fetch missing color identity for commander decks that were imported without it
+        if (string.IsNullOrEmpty(CommanderColorIdentity) && CommanderDeckCard != null)
+            _ = FetchAndSaveCommanderColorIdentityAsync(CommanderDeckCard.Card, value);
+
         ActiveDeckColorFilter = null;
         ApplyDeckColorFilter();
         var slots = DeckCardSlots.ToList();
@@ -636,6 +703,7 @@ public partial class DecksViewModel : ObservableObject
         RecomputeDeckStats();
         ReloadDeckGameStats(value?.Id);
         ReloadDeckVersions();
+        ReloadDeckWishlist();
     }
 
     private void ReloadDeckGameStats(int? deckId)
@@ -787,8 +855,20 @@ public partial class DecksViewModel : ObservableObject
             }
         }
 
-        _db.AddCardToDeck(SelectedDeck.Id, card.Id, 1, false);
-        ReloadDeckCards();
+        // If this exact card is already in the deck, increment in-memory immediately for instant UI feedback
+        var deckEntry = _allDeckCards.FirstOrDefault(dc => dc.CardId == card.Id && !dc.IsSideboard && !dc.IsCommander);
+        if (deckEntry != null)
+        {
+            _db.IncrementDeckCardQuantity(deckEntry.Id);
+            deckEntry.Quantity++;          // DeckCard is now ObservableObject — binding updates immediately
+            NotifyDeckCount();
+            if (IsSortedView) RebuildDeckCategories();
+        }
+        else
+        {
+            _db.AddCardToDeck(SelectedDeck.Id, card.Id, 1, false);
+            ReloadDeckCards();             // New card needs a full reload to get the DB-assigned row Id
+        }
     }
 
     /// <summary>
@@ -816,6 +896,24 @@ public partial class DecksViewModel : ObservableObject
         }
     }
 
+    [RelayCommand]
+    private async Task AddScryfallCardToWishlist(ScryfallResultViewModel? result)
+    {
+        if (result == null || SelectedDeck == null) return;
+        var chosen = result.Data;
+        if (ScryfallResultViewModel.GlobalPickPrintingAsync != null)
+        {
+            var picked = await ScryfallResultViewModel.GlobalPickPrintingAsync(result.Data);
+            if (picked == null) return;
+            chosen = picked;
+        }
+        var shoppingId = _db.AddToShoppingList(chosen);
+        _db.TagShoppingItemToDeck(shoppingId, SelectedDeck.Id);
+        result.IsOnShoppingList = true;
+        IsWishlistOpen = true;
+        ReloadDeckWishlist();
+    }
+
     /// <summary>Reloads the current deck's card lists and rebuilds slots. Called externally by ShoppingViewModel.</summary>
     public void ReloadDeckCards()
     {
@@ -835,6 +933,39 @@ public partial class DecksViewModel : ObservableObject
 
         NotifyDeckCount();
         RecomputeDeckStats();
+        BackfillDeckCardTypeLines();
+    }
+
+    private void BackfillDeckCardTypeLines()
+    {
+        var missing = _allDeckCards
+            .Where(dc => dc.Card != null && string.IsNullOrEmpty(dc.Card.TypeLine))
+            .Select(dc => dc.Card!)
+            .DistinctBy(c => c.Id)
+            .ToList();
+        if (missing.Count == 0) return;
+
+        _typeLineCts?.Cancel();
+        _typeLineCts = new CancellationTokenSource();
+        var ct = _typeLineCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            await _scryfall.BackfillCardMetadataAsync(
+                missing,
+                (card, ci, mc, tl) =>
+                {
+                    if (!string.IsNullOrEmpty(tl))
+                    {
+                        _db.UpdateCardMetadata(card.Id, ci ?? card.ColorIdentity, mc ?? card.ManaCost, tl);
+                        card.TypeLine = tl;
+                    }
+                },
+                ct: ct);
+
+            if (!ct.IsCancellationRequested)
+                Avalonia.Threading.Dispatcher.UIThread.Post(RebuildDeckCategories);
+        }, ct);
     }
 
     private void ApplyDeckColorFilter()
@@ -846,12 +977,23 @@ public partial class DecksViewModel : ObservableObject
         var filtered = source.ToList();
         DeckCards = new ObservableCollection<DeckCard>(filtered);
 
+        // Reuse existing CardSlotViewModels keyed by DeckCard.Id so already-loaded images survive
+        var existingSlots = DeckCardSlots.ToDictionary(s => s.DeckCardId);
         var slots = filtered
             .Where(dc => dc.Card != null)
             .Select(dc =>
             {
-                var slot = new CardSlotViewModel(dc.Card!, _scryfall);
-                slot.RemoveFromDeckCommand = new RelayCommand(() => RemoveCardFromDeck(dc));
+                if (existingSlots.TryGetValue(dc.Id, out var existing))
+                {
+                    existing.RemoveFromDeckCommand       = new RelayCommand(() => RemoveCardFromDeck(dc));
+                    existing.AlternatePrintingsCommand   = new RelayCommand(() => OpenAlternatePrintings(dc.Card));
+                    if (existing.IsCommanderEligible)
+                        existing.SetAsCommanderCommand = new RelayCommand(() => SetAsCommander(dc));
+                    return existing;
+                }
+                var slot = new CardSlotViewModel(dc.Card!, _scryfall) { DeckCardId = dc.Id };
+                slot.RemoveFromDeckCommand     = new RelayCommand(() => RemoveCardFromDeck(dc));
+                slot.AlternatePrintingsCommand = new RelayCommand(() => OpenAlternatePrintings(dc.Card));
                 if (slot.IsCommanderEligible)
                     slot.SetAsCommanderCommand = new RelayCommand(() => SetAsCommander(dc));
                 return slot;
@@ -1185,6 +1327,7 @@ public partial class DecksViewModel : ObservableObject
             ("✦",  "Enchantments",  dc => HasType(dc, "Enchantment") && !HasType(dc, "Creature") && !HasType(dc, "Artifact")),
             ("⚙",  "Artifacts",     dc => HasType(dc, "Artifact")    && !HasType(dc, "Creature")),
             ("⛰",  "Lands",         dc => HasType(dc, "Land")),
+            ("⚔",  "Battles",       dc => HasType(dc, "Battle")),
         };
 
         var groups = new List<DeckCategoryViewModel>();
@@ -1194,15 +1337,61 @@ public partial class DecksViewModel : ObservableObject
             foreach (var dc in cards) assigned.Add(dc.Id);
             if (cards.Count > 0)
                 groups.Add(new DeckCategoryViewModel(icon, name, cards, slotById,
-                    RemoveCardFromDeck, dc => SetAsCommander(dc)));
+                    RemoveCardFromDeck, dc => SetAsCommander(dc), dc => OpenAlternatePrintings(dc.Card)));
         }
 
         var other = nonCommander.Where(dc => !assigned.Contains(dc.Id)).ToList();
         if (other.Count > 0)
+        {
             groups.Add(new DeckCategoryViewModel("•", "Other", other, slotById,
-                RemoveCardFromDeck, dc => SetAsCommander(dc)));
+                RemoveCardFromDeck, dc => SetAsCommander(dc), dc => OpenAlternatePrintings(dc.Card)));
+
+            BackfillOtherCardTypeLines(other);
+        }
 
         DeckCategories = new ObservableCollection<DeckCategoryViewModel>(groups);
+    }
+
+    /// <summary>
+    /// For cards that ended up in "Other", query Scryfall to resolve their TypeLine
+    /// and re-categorize once results arrive. Only queries each card once per deck session.
+    /// </summary>
+    private void BackfillOtherCardTypeLines(List<DeckCard> otherCards)
+    {
+        var toFetch = otherCards
+            .Where(dc => dc.Card != null
+                      && !string.IsNullOrEmpty(dc.Card.ScryfallId)
+                      && !_typeLineFetchAttempted.Contains(dc.Card.Id))
+            .Select(dc => dc.Card!)
+            .DistinctBy(c => c.Id)
+            .ToList();
+
+        if (toFetch.Count == 0) return;
+
+        foreach (var c in toFetch)
+            _typeLineFetchAttempted.Add(c.Id);
+
+        _typeLineCts?.Cancel();
+        _typeLineCts = new CancellationTokenSource();
+        var ct = _typeLineCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            await _scryfall.BackfillCardMetadataAsync(
+                toFetch,
+                (card, ci, mc, tl) =>
+                {
+                    if (!string.IsNullOrEmpty(tl))
+                    {
+                        _db.UpdateCardMetadata(card.Id, ci ?? card.ColorIdentity, mc ?? card.ManaCost, tl);
+                        card.TypeLine = tl;
+                    }
+                },
+                ct: ct);
+
+            if (!ct.IsCancellationRequested)
+                Avalonia.Threading.Dispatcher.UIThread.Post(RebuildDeckCategories);
+        }, ct);
     }
 
     // ── Commander management ──────────────────────────────────────────────────
@@ -1271,7 +1460,7 @@ public partial class DecksViewModel : ObservableObject
         var deck = new Deck
         {
             Name = NewDeckName,
-            Format = string.IsNullOrWhiteSpace(NewDeckFormat) ? null : NewDeckFormat,
+            Format = NormalizeFormat(NewDeckFormat),
             Description = string.IsNullOrWhiteSpace(NewDeckDescription) ? null : NewDeckDescription
         };
         _db.AddDeck(deck);
@@ -1296,8 +1485,14 @@ public partial class DecksViewModel : ObservableObject
     private void RemoveCardFromDeck(DeckCard? deckCard)
     {
         if (deckCard == null) return;
-        _db.RemoveCardFromDeck(deckCard.Id);
-        if (CommanderDeckCard?.Id == deckCard.Id)
+
+        // Always resolve the live reference from _allDeckCards to avoid stale captures.
+        // If the passed-in dc is already live (same reference), FirstOrDefault returns it directly.
+        var live = _allDeckCards.FirstOrDefault(dc => dc.Id == deckCard.Id) ?? deckCard;
+
+        _db.DecrementDeckCard(live.Id);
+
+        if (CommanderDeckCard?.Id == live.Id)
         {
             CommanderDeckCard = null;
             CommanderColorIdentity = string.Empty;
@@ -1307,7 +1502,19 @@ public partial class DecksViewModel : ObservableObject
                 _db.UpdateDeck(SelectedDeck);
             }
         }
-        ReloadDeckCards();
+
+        if (live.Quantity > 1)
+        {
+            // Instant in-memory decrement — no DB round-trip reload needed.
+            live.Quantity--;
+            NotifyDeckCount();
+            if (IsSortedView) RebuildDeckCategories();
+        }
+        else
+        {
+            // Last copy was removed — do a full reload to drop the row from all collections.
+            ReloadDeckCards();
+        }
     }
 
     [RelayCommand]

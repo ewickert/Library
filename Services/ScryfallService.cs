@@ -355,6 +355,56 @@ public class ScryfallService
         catch { return []; }
     }
 
+    /// <summary>
+    /// Fetches a single page of alternate printings. Pass the card name for the first page;
+    /// pass <paramref name="nextPageUrl"/> on subsequent calls. Returns the cards on this page
+    /// and the absolute URL of the next page (null if this is the last page).
+    /// </summary>
+    public async Task<(List<ScryfallCardData> Cards, string? NextPageUrl, int TotalCards)>
+        GetAlternatePrintingsPageAsync(string cardName, string? nextPageUrl, CancellationToken ct = default)
+    {
+        try
+        {
+            string relativeUrl;
+            if (nextPageUrl != null)
+            {
+                // Strip base so ApiGetAsync can add it back
+                relativeUrl = nextPageUrl.StartsWith("https://api.scryfall.com/")
+                    ? nextPageUrl["https://api.scryfall.com/".Length..]
+                    : nextPageUrl;
+            }
+            else
+            {
+                var query = $"!\"{cardName}\"";
+                relativeUrl = $"cards/search?q={Uri.EscapeDataString(query)}&unique=prints&order=released";
+            }
+
+            var json = await ApiGetAsync(relativeUrl, ct);
+            if (json == null) return ([], null, 0);
+
+            using var doc = JsonDocument.Parse(json);
+            var cards = new List<ScryfallCardData>();
+            if (doc.RootElement.TryGetProperty("data", out var data))
+                foreach (var card in data.EnumerateArray())
+                {
+                    var parsed = ParseCardData(card);
+                    if (parsed != null) cards.Add(parsed);
+                }
+
+            int totalCards = doc.RootElement.TryGetProperty("total_cards", out var tc)
+                ? tc.GetInt32() : cards.Count;
+
+            string? next = null;
+            if (doc.RootElement.TryGetProperty("has_more", out var hasMore) && hasMore.GetBoolean() &&
+                doc.RootElement.TryGetProperty("next_page", out var np))
+                next = np.GetString();
+
+            return (cards, next, totalCards);
+        }
+        catch (OperationCanceledException) { return ([], null, 0); }
+        catch { return ([], null, 0); }
+    }
+
     private static ScryfallCardData? ParseCardData(JsonElement card)
     {
         try

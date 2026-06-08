@@ -88,6 +88,9 @@
                   </StackPanel>
                   <TextBlock Text="{Binding DeckNamesLabel}" FontSize="11"
                              Foreground="#8899CCFF" FontStyle="Italic" />
+                  <TextBlock Text="{Binding CurrentPriceLabel}" FontSize="12" FontWeight="SemiBold"
+                             Foreground="#66DD88"
+                             IsVisible="{Binding CurrentPriceLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
 
                 <!-- Actions -->

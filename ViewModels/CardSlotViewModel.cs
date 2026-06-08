@@ -22,11 +22,17 @@ public partial class CardSlotViewModel : ObservableObject
         (Card.TypeLine.Contains("Creature", StringComparison.OrdinalIgnoreCase) ||
          Card.TypeLine.Contains("Planeswalker", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>The DeckCard.Id this slot corresponds to, used to preserve loaded images across reloads.</summary>
+    public int DeckCardId { get; set; }
+
     /// <summary>Set by DecksViewModel when this slot is used in a deck context. Removes the card from the deck.</summary>
     public ICommand? RemoveFromDeckCommand { get; set; }
 
     /// <summary>Set by DecksViewModel. Promotes this card to commander. Null when not commander-eligible.</summary>
     public ICommand? SetAsCommanderCommand { get; set; }
+
+    /// <summary>Set by DecksViewModel. Opens the alternate printings gallery for this card.</summary>
+    public ICommand? AlternatePrintingsCommand { get; set; }
 
     // ── Price display helpers ─────────────────────────────────────────────────
     /// <summary>Current market price formatted as "$X.XX", or "—" if unavailable.</summary>

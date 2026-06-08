@@ -92,7 +92,9 @@
                 CornerRadius="6" Padding="8">
           <StackPanel Spacing="6">
             <TextBox Text="{Binding NewDeckName}" Watermark="Deck name *" />
-            <TextBox Text="{Binding NewDeckFormat}" Watermark="Format (Commander, Modern…)" />
+            <ComboBox ItemsSource="{x:Static vm:DecksViewModel.Formats}"
+                      SelectedItem="{Binding NewDeckFormat}"
+                      PlaceholderText="Format (optional)" HorizontalAlignment="Stretch" />
             <TextBox Text="{Binding NewDeckDescription}" Watermark="Description" />
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Button Content="Create" Command="{Binding ConfirmCreateDeckCommand}" Classes="accent" />
@@ -233,6 +235,9 @@
                 <MenuItem Header="↑  Export to file"
                           Command="{Binding ExportDeckCommand}"
                           IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <MenuItem Header="⎘  Copy to clipboard"
+                          Command="{Binding CopyDeckToClipboardCommand}"
+                          IsEnabled="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}" />
                 <MenuItem Header="↓  Import from file"
                           Command="{Binding ImportDeckCommand}" />
                 <Separator />
@@ -300,7 +305,8 @@
       </Border>
 
       <!-- List / Grid area -->
-      <Panel Grid.Row="4">
+      <Grid Grid.Row="4" RowDefinitions="*,Auto">
+        <Panel Grid.Row="0">
         <!-- List view -->
         <DataGrid x:Name="DeckListDataGrid"
                   ItemsSource="{Binding DeckCards}"
@@ -385,6 +391,8 @@
                         Background="{DynamicResource ThemeSurfaceVariantBrush}">
                   <Border.ContextMenu>
                     <ContextMenu x:CompileBindings="False">
+                      <MenuItem Header="🖼  Alternate Printings" Command="{Binding AlternatePrintingsCommand}" />
+                      <Separator />
                       <MenuItem Header="Remove from deck" Command="{Binding RemoveFromDeckCommand}" />
                       <Separator IsVisible="{Binding IsCommanderEligible}" />
                       <MenuItem Header="Set as Commander"
@@ -520,6 +528,8 @@
                                     BorderThickness="0,0,0,1">
                               <Border.ContextMenu>
                                 <ContextMenu x:CompileBindings="False">
+                                  <MenuItem Header="🖼  Alternate Printings" Command="{Binding AlternatePrintingsCommand}" />
+                                  <Separator />
                                   <MenuItem Header="Remove from deck" Command="{Binding RemoveCommand}" />
                                   <Separator IsVisible="{Binding IsCommanderEligible}" />
                                   <MenuItem Header="Set as Commander"
@@ -585,6 +595,8 @@
                                     ToolTip.ShowDelay="200">
                               <Border.ContextMenu>
                                 <ContextMenu x:CompileBindings="False">
+                                  <MenuItem Header="🖼  Alternate Printings" Command="{Binding AlternatePrintingsCommand}" />
+                                  <Separator />
                                   <MenuItem Header="Remove from deck" Command="{Binding RemoveCommand}" />
                                   <Separator IsVisible="{Binding IsCommanderEligible}" />
                                   <MenuItem Header="Set as Commander"
@@ -654,7 +666,90 @@
         <TextBlock Text="Select a deck to view its cards."
                    IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNull}}"
                    HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5" />
-      </Panel>
+        </Panel>
+
+        <!-- Deck Wishlist panel (Row 1 — collapses to nothing when empty / closed) -->
+        <Border Grid.Row="1"
+                IsVisible="{Binding SelectedDeck, Converter={x:Static ObjectConverters.IsNotNull}}"
+                Background="{DynamicResource ThemeSurfaceBrush}"
+                BorderBrush="{DynamicResource ThemeBorderMidBrush}"
+                BorderThickness="0,1,0,0"
+                Margin="0,4,0,0">
+          <Expander IsExpanded="{Binding IsWishlistOpen}" Padding="0">
+            <Expander.Header>
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <TextBlock Text="⭐ Deck Wishlist" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" />
+                <Border Background="{DynamicResource ThemeAccentBrush}" CornerRadius="8"
+                        Padding="6,1" VerticalAlignment="Center"
+                        IsVisible="{Binding DeckWishlistItems, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  <TextBlock Text="{Binding DeckWishlistItems.Count}" FontSize="11" FontWeight="Bold"
+                             Foreground="White" />
+                </Border>
+              </StackPanel>
+            </Expander.Header>
+            <Border Padding="4,6,4,4"
+                    IsVisible="{Binding DeckWishlistItems, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                            VerticalScrollBarVisibility="Auto"
+                            MaxHeight="360">
+              <ItemsControl ItemsSource="{Binding DeckWishlistItems}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:WishlistItemViewModel">
+                    <Border Width="110" Height="165" CornerRadius="6" ClipToBounds="True"
+                            Margin="4" Background="{DynamicResource ThemeSurfaceVariantBrush}"
+                            ToolTip.ShowDelay="300">
+                      <ToolTip.Tip>
+                        <Border Background="#1A1A2A" CornerRadius="8" Padding="6">
+                          <Panel>
+                            <ProgressBar IsIndeterminate="True" Width="40" Height="4"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                                         IsVisible="{Binding IsLoadingImage}" />
+                            <Image Source="{Binding Image}" Width="280" Height="392" Stretch="Uniform"
+                                   IsVisible="{Binding Image, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          </Panel>
+                        </Border>
+                      </ToolTip.Tip>
+                      <Grid RowDefinitions="*,Auto">
+                        <Panel Grid.Row="0">
+                          <ProgressBar IsIndeterminate="True" Width="40" Height="4"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       IsVisible="{Binding IsLoadingImage}" />
+                          <Image Source="{Binding Image}" Stretch="UniformToFill" />
+                        </Panel>
+                        <Border Grid.Row="1" Background="#CC000000" Padding="4,3">
+                          <StackPanel Spacing="2">
+                            <TextBlock Text="{Binding Name}" FontSize="9" FontWeight="SemiBold"
+                                       Foreground="White" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Foreground="#AAFFFFFF" FontSize="8"
+                                       TextTrimming="CharacterEllipsis">
+                              <Run Text="{Binding SetCode}" /><Run Text=" #" /><Run Text="{Binding CollectorNumber}" />
+                            </TextBlock>
+                            <StackPanel Orientation="Horizontal" Spacing="2" Margin="0,1,0,0">
+                              <Button Content="+ Deck" Command="{Binding AddToDeckCommand}"
+                                      FontSize="8" Padding="3,1"
+                                      ToolTip.Tip="Add to this deck" />
+                              <Button Content="✕" Command="{Binding RemoveFromWishlistCommand}"
+                                      FontSize="8" Padding="3,1"
+                                      ToolTip.Tip="Remove from deck wishlist" />
+                            </StackPanel>
+                          </StackPanel>
+                        </Border>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              </ScrollViewer>
+            </Border>
+          </Expander>
+        </Border>
+
+      </Grid>
     </Grid>
 
     <!-- Splitter between deck detail and collection pane -->

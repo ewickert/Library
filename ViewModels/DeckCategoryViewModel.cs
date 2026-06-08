@@ -25,8 +25,11 @@ public sealed class DeckCardSortedItem
     /// <summary>Promotes this card to commander. Null when the card is not commander-eligible.</summary>
     public ICommand? PromoteToCommanderCommand { get; }
 
+    /// <summary>Opens the alternate printings gallery for this card.</summary>
+    public ICommand? AlternatePrintingsCommand { get; }
+
     public DeckCardSortedItem(DeckCard dc, CardSlotViewModel? slot,
-        Action<DeckCard> remove, Action<DeckCard>? promote)
+        Action<DeckCard> remove, Action<DeckCard>? promote, Action<DeckCard>? alternatePrintings = null)
     {
         DeckCard = dc;
         Slot = slot;
@@ -40,6 +43,9 @@ public sealed class DeckCardSortedItem
         RemoveCommand = new RelayCommand(() => remove(dc));
         PromoteToCommanderCommand = IsCommanderEligible && promote != null
             ? new RelayCommand(() => promote(dc))
+            : null;
+        AlternatePrintingsCommand = alternatePrintings != null
+            ? new RelayCommand(() => alternatePrintings(dc))
             : null;
     }
 }
@@ -64,7 +70,8 @@ public sealed class DeckCategoryViewModel
         IEnumerable<DeckCard> cards,
         IReadOnlyDictionary<int, CardSlotViewModel> slotById,
         Action<DeckCard> removeAction,
-        Action<DeckCard>? promoteAction)
+        Action<DeckCard>? promoteAction,
+        Action<DeckCard>? alternatePrintingsAction = null)
     {
         Icon  = icon;
         Name  = name;
@@ -75,7 +82,8 @@ public sealed class DeckCategoryViewModel
                 dc,
                 dc.Card != null && slotById.TryGetValue(dc.Card.Id, out var s) ? s : null,
                 removeAction,
-                promoteAction))
+                promoteAction,
+                alternatePrintingsAction))
             .ToList();
 
         Count = ordered.Sum(dc => dc.Quantity);

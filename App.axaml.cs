@@ -168,6 +168,26 @@ public partial class App : Application
                     await clipboard.SetTextAsync(content);
             };
 
+            // ── Copy deck to clipboard ─────────────────────────────────────────
+            vm.Decks.RequestCopyToClipboard = async content =>
+            {
+                var topLevel = TopLevel.GetTopLevel(mainView);
+                var clipboard = topLevel?.Clipboard;
+                if (clipboard != null)
+                    await clipboard.SetTextAsync(content);
+            };
+
+            // ── Alternate printings gallery (mobile) ───────────────────────────
+            vm.Decks.RequestOpenAlternatePrintings = async (cardName, currentScryfallId, contextDeck) =>
+            {
+                var topLevel = TopLevel.GetTopLevel(mainView) as Window;
+                if (topLevel == null) return;
+                var win = new Library.Views.AlternatePrintingsWindow(
+                    cardName, currentScryfallId, scryfall, db, contextDeck);
+                win.Closed += (_, _) => vm.Decks.ReloadDeckWishlist();
+                await win.ShowDialog(topLevel);
+            };
+
             // ── Deck import (mobile: open file picker) ─────────────────────────
             vm.Decks.RequestImportDeck = async () =>
             {

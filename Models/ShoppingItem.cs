@@ -16,4 +16,10 @@ public class ShoppingItem
 
     /// <summary>The Id of the placeholder Card row in the Cards table (Quantity=0) created for this item.</summary>
     public int? PlaceholderCardId { get; set; }
+
+    /// <summary>Current market price pulled from the placeholder card row (may be null if never fetched).</summary>
+    public decimal? CurrentMarketPrice { get; set; }
+
+    /// <summary>When the price was last fetched (UTC). Used for 24-hour staleness check.</summary>
+    public DateTime? CurrentMarketPriceFetchedAt { get; set; }
 }
